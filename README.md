@@ -46,6 +46,8 @@
 │   └── profile-sockets.yaml    # Example profile 2: Smart Power Sockets & Energy
 ├── data/
 │   └── icons/                  # 90x90 button icons & 60x270 side-strip PNG graphics
+├── doc/
+│   └── img/                    # Documentation & sample layout screenshots
 ├── pkg/
 │   ├── commander/              # BaseLoupeDeckHandler, ButtonField, and Button state machine
 │   ├── config/                 # Application/Profile config loader, validator & auto-fixer
@@ -105,6 +107,8 @@ loupedeck-commander [command] [options]
 ### Example Configuration (`config/`)
 
 The repository includes a ready-to-run Smart Home configuration in [`config/config.yaml`](config/config.yaml) with two profiles (switched via physical buttons `1` and `2`):
+
+![Sample Smart Home Layout](doc/img/sample-layout.png)
 
 - **[`config/profile-lights.yaml`](config/profile-lights.yaml) (`lights`)**: Controls room lighting (`Living Room`, `Kitchen`, `Bedroom`, `Office`, `Hallway`, `Bathroom`, `Garden`, `Garage`), lighting scenes (`Movie Scene`, `Reading`, `Party Mode`), a 1s delayed-hold `ALL OFF` master button, `AUTO LUX` daylight toggle on the right touch strip, and 6 rotary dimmers (`knobTL`..`knobBR`).
 - **[`config/profile-sockets.yaml`](config/profile-sockets.yaml) (`sockets`)**: Controls smart power outlets (`Coffee Maker`, `Desk PC`, `3D Printer`, `Home NAS`, `TV & Audio`, `Dishwasher`, `Washer`, `EV Wallbox`, `Heat Pump`, `Garden Pump`, `PV Priority`), a 1.5s delayed-hold `Kill Standby` button, `ECO MODE` load-shedding toggle, and rotary controls for EV charge current, heat pump target temperature, and ventilation speed.

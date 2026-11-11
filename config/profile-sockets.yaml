@@ -22,6 +22,7 @@ touch:
           color: "#1e293b"
       params:
         text: SOCKETS
+        font: 11px bold Arial
         textBaseline: middle
         image: data/icons/side_sockets.png
   right:
@@ -35,6 +36,7 @@ touch:
           value: 0
       params:
         text: ECO MODE
+        font: 11px bold Arial
         textBaseline: middle
         image: data/icons/side_eco.png
         opcua: ns={namespace};s=Home.Power.EcoMode.Set

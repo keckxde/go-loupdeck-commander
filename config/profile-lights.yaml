@@ -21,6 +21,7 @@ touch:
           color: "#1e293b"
       params:
         text: LIGHTS
+        font: 11px bold Arial
         textBaseline: middle
         image: data/icons/side_lights.png
   right:
@@ -34,6 +35,7 @@ touch:
           value: 0
       params:
         text: AUTO LUX
+        font: 11px bold Arial
         textBaseline: middle
         image: data/icons/side_auto_lux.png
         opcua: ns={namespace};s=Home.Lights.AutoDaylight.Set
