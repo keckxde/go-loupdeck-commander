@@ -103,11 +103,37 @@ file(CONFIGURE
 if(GO_BUILD)
     file(MAKE_DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
 
+    if("${GO_TARGET_OS}" STREQUAL "windows" OR WIN32)
+        set(EMULATOR_SHORTCUT_FILENAME "loupedeck-emulator.cmd")
+        set(EMULATOR_SHORTCUT_PATH "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${EMULATOR_SHORTCUT_FILENAME}")
+        file(WRITE "${EMULATOR_SHORTCUT_PATH}" "@echo off\r\n\"%~dp0${OUTPUT_BINARY_FILENAME}\" emulate %*\r\n")
+        set(CREATE_EMULATOR_LINK_CMD "")
+        set(SYNC_ROOT_LINK_CMD "")
+    else()
+        set(EMULATOR_SHORTCUT_FILENAME "loupedeck-emulator")
+        set(EMULATOR_SHORTCUT_PATH "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${EMULATOR_SHORTCUT_FILENAME}")
+        set(CREATE_EMULATOR_LINK_CMD
+            COMMAND ${CMAKE_COMMAND} -E create_symlink
+            "${OUTPUT_BINARY_FILENAME}"
+            "${EMULATOR_SHORTCUT_PATH}"
+        )
+        if(SYNC_ROOT_BINARY)
+            set(SYNC_ROOT_LINK_CMD
+                COMMAND ${CMAKE_COMMAND} -E create_symlink
+                "${OUTPUT_BINARY_FILENAME}"
+                "${CMAKE_CURRENT_SOURCE_DIR}/${EMULATOR_SHORTCUT_FILENAME}"
+            )
+        else()
+            set(SYNC_ROOT_LINK_CMD "")
+        endif()
+    endif()
+
     if(SYNC_ROOT_BINARY)
         set(SYNC_ROOT_CMD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "${OUTPUT_BINARY_PATH}"
             "${CMAKE_CURRENT_SOURCE_DIR}/${OUTPUT_BINARY_FILENAME}"
+            ${SYNC_ROOT_LINK_CMD}
         )
     else()
         set(SYNC_ROOT_CMD "")
@@ -137,6 +163,7 @@ if(GO_BUILD)
         -ldflags "${GO_LDFLAGS}"
         -o "${OUTPUT_BINARY_PATH}"
         ${CMD_PKG}
+        ${CREATE_EMULATOR_LINK_CMD}
         ${SYNC_ROOT_CMD}
         COMMENT "Building ${OUTPUT_BINARY_FILENAME} (version: ${LOUPEDECK_COMMANDER_VERSION})"
         VERBATIM
@@ -227,6 +254,32 @@ install(
     DESTINATION bin
     COMPONENT CORE
 )
+
+if(DEFINED EMULATOR_SHORTCUT_PATH)
+    install(
+        PROGRAMS "${EMULATOR_SHORTCUT_PATH}"
+        DESTINATION bin
+        COMPONENT CORE
+    )
+endif()
+
+if(NOT ("${GO_TARGET_OS}" STREQUAL "windows" OR WIN32))
+    set(DESKTOP_SHORTCUT_FILE "${CMAKE_CURRENT_BINARY_DIR}/loupedeck-emulator.desktop")
+    file(WRITE "${DESKTOP_SHORTCUT_FILE}"
+"[Desktop Entry]
+Type=Application
+Name=Loupedeck Emulator
+Comment=Interactive Web Emulator & Configuration Studio for Loupedeck Commander
+Exec=loupedeck-emulator
+Terminal=true
+Categories=Utility;Development;HardwareSettings;
+")
+    install(
+        FILES "${DESKTOP_SHORTCUT_FILE}"
+        DESTINATION share/applications
+        COMPONENT CORE
+    )
+endif()
 
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/README.md")
     install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/README.md" DESTINATION doc COMPONENT CORE)

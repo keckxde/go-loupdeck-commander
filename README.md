@@ -62,7 +62,9 @@
 ## CLI Usage
 
 ```bash
-loupedeck-commander [command] [options]
+loupedeck-commander [config-file] [options]
+loupedeck-commander [command] [config-file] [options]
+loupedeck-emulator [config-file] [options]  # Direct shortcut for 'loupedeck-commander emulate'
 ```
 
 ### Commands
@@ -92,13 +94,19 @@ loupedeck-commander [command] [options]
 
 ```bash
 # Start hardware daemon using the default SmartHome config (config/config.yaml)
-./loupedeck-commander run --config=config/config.yaml
+./loupedeck-commander
 
-# Launch Web Emulator & Configuration Studio on port 3080 (safe dry-run mode)
-./loupedeck-commander emulate --config=config/config.yaml --port=3080
+# Or pass a specific config file directly (defaults to 'run' mode)
+./loupedeck-commander config/config.yaml
+
+# Launch Web Emulator & Configuration Studio directly via the one-call shortcut
+./loupedeck-emulator
+
+# Or with custom config & options on port 3080 (safe dry-run mode)
+./loupedeck-emulator config/config.yaml --port=3080
 
 # Validate configuration and auto-fix deprecated profile attributes
-./loupedeck-commander validate --config=config/config.yaml --fix
+./loupedeck-commander validate config/config.yaml --fix
 
 # Print build & Git-tag version metadata
 ./loupedeck-commander --version

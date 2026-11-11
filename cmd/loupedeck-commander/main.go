@@ -65,6 +65,18 @@ func resolveDefaultConfig(baseDir, host string) string {
 			return "config/" + matches[0]
 		}
 	}
+	// Fallback: check relative to the installed binary prefix (<prefix>/bin/loupedeck-commander -> <prefix>/config/config.yaml)
+	if exePath, err := os.Executable(); err == nil {
+		exeDir := filepath.Dir(exePath)
+		for _, root := range []string{exeDir, filepath.Dir(exeDir)} {
+			for _, c := range candidates {
+				cand := filepath.Join(root, c)
+				if _, err := os.Stat(cand); err == nil {
+					return cand
+				}
+			}
+		}
+	}
 	return "config/config.yaml"
 }
 
@@ -80,8 +92,15 @@ type cliArgs struct {
 func parseArgs(argv []string) cliArgs {
 	host, _ := os.Hostname()
 	explicitConfig := false
+	defaultCmd := "run"
+	if len(argv) > 0 {
+		progName := strings.ToLower(filepath.Base(argv[0]))
+		if strings.Contains(progName, "emulat") {
+			defaultCmd = "emulate"
+		}
+	}
 	args := cliArgs{
-		command: "run",
+		command: defaultCmd,
 		config:  "config/config.yaml",
 		port:    3080,
 		live:    false,
@@ -167,7 +186,9 @@ func printHelp() {
 Loupedeck Commander (Go) %s — Hardware Daemon, Emulator & Configuration Tool
 
 Usage:
-  loupedeck-commander [command] [options]
+  loupedeck-commander [config-file] [options]
+  loupedeck-commander [command] [config-file] [options]
+  loupedeck-emulator [config-file] [options]  (shortcut for 'loupedeck-commander emulate')
 
 Commands:
   run         Start the Loupedeck Commander hardware daemon (default)
