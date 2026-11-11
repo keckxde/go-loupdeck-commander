@@ -9,6 +9,9 @@ parameters:
   filter: released
   minPressedMode: delayed
   textColor: "#FFFFFF"
+  textBaseline: bottom
+  textAlign: center
+  font: 13px Arial
 
 description: "Smart Power Sockets & Energy Distribution"
 touch:
@@ -19,6 +22,8 @@ touch:
           color: "#1e293b"
       params:
         text: SOCKETS
+        textBaseline: middle
+        image: data/icons/side_sockets.png
   right:
     "0":
       states:
@@ -30,6 +35,8 @@ touch:
           value: 0
       params:
         text: ECO MODE
+        textBaseline: middle
+        image: data/icons/side_eco.png
         opcua: ns={namespace};s=Home.Power.EcoMode.Set
         nodeid: ns={namespace};s=Home.Power.EcoMode.State
   center:
@@ -52,6 +59,7 @@ touch:
           value: false
       params:
         text: Coffee Maker
+        image: data/icons/socket_coffee.png
         nodeid: ns={namespace};s=Home.Sockets.CoffeeMaker.State
     "1":
       states:
@@ -66,6 +74,7 @@ touch:
           value: false
       params:
         text: Desk PC
+        image: data/icons/socket_pc.png
         nodeid: ns={namespace};s=Home.Sockets.WorkstationPC.State
         minPressed: 1500
         minPressedMode: delayed
@@ -87,6 +96,7 @@ touch:
           value: false
       params:
         text: 3D Printer
+        image: data/icons/socket_printer3d.png
         nodeid: ns={namespace};s=Home.Sockets.Printer3D.State
         minPressed: 2000
         minPressedMode: delayed
@@ -102,6 +112,7 @@ touch:
           value: false
       params:
         text: Home NAS
+        image: data/icons/socket_nas.png
         nodeid: ns={namespace};s=Home.Sockets.HomeNAS.State
         minPressed: 2000
         minPressedMode: delayed
@@ -120,6 +131,7 @@ touch:
           value: false
       params:
         text: TV & Audio
+        image: data/icons/socket_tv.png
         nodeid: ns={namespace};s=Home.Sockets.TVRack.State
     "5":
       states:
@@ -134,6 +146,7 @@ touch:
           value: false
       params:
         text: Dishwasher
+        image: data/icons/socket_dishwasher.png
         nodeid: ns={namespace};s=Home.Sockets.Dishwasher.State
     "6":
       states:
@@ -148,6 +161,7 @@ touch:
           value: false
       params:
         text: Washer
+        image: data/icons/socket_washer.png
         nodeid: ns={namespace};s=Home.Sockets.Washer.State
     "7":
       states:
@@ -167,6 +181,7 @@ touch:
           value: true
       params:
         text: EV Wallbox
+        image: data/icons/socket_ev.png
         nodeid: ns={namespace};s=Home.Sockets.EVWallbox.State
 
     # Row 3: HVAC, Outdoor & Standby Cut-Off
@@ -183,6 +198,7 @@ touch:
           value: false
       params:
         text: Heat Pump
+        image: data/icons/socket_heatpump.png
         nodeid: ns={namespace};s=Home.Sockets.HeatPump.State
     "9":
       states:
@@ -197,6 +213,7 @@ touch:
           value: false
       params:
         text: Garden Pump
+        image: data/icons/socket_pump.png
         nodeid: ns={namespace};s=Home.Sockets.GardenPump.State
     "10":
       states:
@@ -211,6 +228,7 @@ touch:
           value: false
       params:
         text: PV Priority
+        image: data/icons/socket_solar.png
         nodeid: ns={namespace};s=Home.Sockets.SolarPriority.State
     "11":
       states:
@@ -225,6 +243,7 @@ touch:
           value: true
       params:
         text: Kill Standby
+        image: data/icons/socket_kill_standby.png
         nodeid: ns={namespace};s=Home.Sockets.StandbyActive.State
         minPressed: 1500
         minPressedMode: delayed
@@ -251,4 +270,3 @@ knobs:
         opcua: ns={namespace};s=Home.Sockets.Ventilation.SpeedIn
     params:
       nodeid: ns={namespace};s=Home.Sockets.Ventilation.SpeedOut
-

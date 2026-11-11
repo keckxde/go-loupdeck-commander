@@ -8,6 +8,9 @@ parameters:
   verbose: false
   filter: pressed
   textColor: "#FFFFFF"
+  textBaseline: bottom
+  textAlign: center
+  font: 13px Arial
 
 description: "Smart Home Lighting & Scene Control"
 touch:
@@ -18,6 +21,8 @@ touch:
           color: "#1e293b"
       params:
         text: LIGHTS
+        textBaseline: middle
+        image: data/icons/side_lights.png
   right:
     "0":
       states:
@@ -29,6 +34,8 @@ touch:
           value: 0
       params:
         text: AUTO LUX
+        textBaseline: middle
+        image: data/icons/side_auto_lux.png
         opcua: ns={namespace};s=Home.Lights.AutoDaylight.Set
         nodeid: ns={namespace};s=Home.Lights.AutoDaylight.State
   center:
@@ -44,6 +51,7 @@ touch:
           value: 0
       params:
         text: Living Room
+        image: data/icons/light_living.png
         opcua: ns={namespace};s=Home.Lights.LivingRoom.Switch
         nodeid: ns={namespace};s=Home.Lights.LivingRoom.State
     "1":
@@ -57,6 +65,7 @@ touch:
           value: 0
       params:
         text: Kitchen
+        image: data/icons/light_kitchen.png
         opcua: ns={namespace};s=Home.Lights.Kitchen.Switch
         nodeid: ns={namespace};s=Home.Lights.Kitchen.State
     "2":
@@ -70,6 +79,7 @@ touch:
           value: 0
       params:
         text: Bedroom
+        image: data/icons/light_bedroom.png
         opcua: ns={namespace};s=Home.Lights.Bedroom.Switch
         nodeid: ns={namespace};s=Home.Lights.Bedroom.State
     "3":
@@ -83,6 +93,7 @@ touch:
           value: 0
       params:
         text: Office
+        image: data/icons/light_office.png
         opcua: ns={namespace};s=Home.Lights.Office.Switch
         nodeid: ns={namespace};s=Home.Lights.Office.State
 
@@ -98,6 +109,7 @@ touch:
           value: 0
       params:
         text: Hallway
+        image: data/icons/light_hallway.png
         opcua: ns={namespace};s=Home.Lights.Hallway.Switch
         nodeid: ns={namespace};s=Home.Lights.Hallway.State
     "5":
@@ -111,6 +123,7 @@ touch:
           value: 0
       params:
         text: Bathroom
+        image: data/icons/light_bathroom.png
         opcua: ns={namespace};s=Home.Lights.Bathroom.Switch
         nodeid: ns={namespace};s=Home.Lights.Bathroom.State
     "6":
@@ -124,6 +137,7 @@ touch:
           value: 0
       params:
         text: Garden
+        image: data/icons/light_garden.png
         opcua: ns={namespace};s=Home.Lights.Garden.Switch
         nodeid: ns={namespace};s=Home.Lights.Garden.State
     "7":
@@ -137,6 +151,7 @@ touch:
           value: 0
       params:
         text: Garage
+        image: data/icons/light_garage.png
         opcua: ns={namespace};s=Home.Lights.Garage.Switch
         nodeid: ns={namespace};s=Home.Lights.Garage.State
 
@@ -151,6 +166,7 @@ touch:
           value: 1
       params:
         text: Movie Scene
+        image: data/icons/scene_movie.png
         opcua: ns={namespace};s=Home.Lights.Scene.Select
         nodeid: ns={namespace};s=Home.Lights.Scene.Active
     "9":
@@ -164,6 +180,7 @@ touch:
           value: 2
       params:
         text: Reading
+        image: data/icons/scene_reading.png
         opcua: ns={namespace};s=Home.Lights.Scene.Select
         nodeid: ns={namespace};s=Home.Lights.Scene.Active
     "10":
@@ -176,6 +193,7 @@ touch:
           value: 3
       params:
         text: Party Mode
+        image: data/icons/scene_party.png
         opcua: ns={namespace};s=Home.Lights.Scene.Select
         nodeid: ns={namespace};s=Home.Lights.Scene.Active
     "11":
@@ -191,6 +209,7 @@ touch:
           value: true
       params:
         text: ALL OFF
+        image: data/icons/power_off.png
         nodeid: ns={namespace};s=Home.Lights.AnyOn.State
         minPressed: 1000
         minPressedMode: delayed
@@ -239,4 +258,3 @@ knobs:
         opcua: ns={namespace};s=Home.Lights.Master.BrightnessIn
     params:
       nodeid: ns={namespace};s=Home.Lights.Master.BrightnessOut
-

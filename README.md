@@ -44,6 +44,8 @@
 │   ├── config.yaml             # Default SmartHome Hub application configuration
 │   ├── profile-lights.yaml     # Example profile 1: Smart Home Lighting & Scenes
 │   └── profile-sockets.yaml    # Example profile 2: Smart Power Sockets & Energy
+├── data/
+│   └── icons/                  # 90x90 button icons & 60x270 side-strip PNG graphics
 ├── pkg/
 │   ├── commander/              # BaseLoupeDeckHandler, ButtonField, and Button state machine
 │   ├── config/                 # Application/Profile config loader, validator & auto-fixer

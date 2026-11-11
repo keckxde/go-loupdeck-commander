@@ -10,13 +10,12 @@ parameters:
   homeapi: http://homeassistant.local:8123/api
   publishingInterval: 200
   textColor: "#FFFFFF"
-  textBaseline: middle
+  textBaseline: bottom
   textAlign: center
-  font: 14px Arial
+  font: 13px Arial
 
 profiles:
   - name: lights
     file: config/profile-lights.yaml
   - name: sockets
     file: config/profile-sockets.yaml
-
