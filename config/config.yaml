@@ -1,0 +1,22 @@
+application: SmartHome Hub
+device: Loupedeck Live
+layout:
+  columns: 4
+  rows: 3
+parameters:
+  verbose: false
+  endpointurl: opc.tcp://home-plc.local:4840
+  namespace: 2
+  homeapi: http://homeassistant.local:8123/api
+  publishingInterval: 200
+  textColor: "#FFFFFF"
+  textBaseline: middle
+  textAlign: center
+  font: 14px Arial
+
+profiles:
+  - name: lights
+    file: config/profile-lights.yaml
+  - name: sockets
+    file: config/profile-sockets.yaml
+

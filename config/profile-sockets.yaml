@@ -1,0 +1,254 @@
+name: sockets
+profile: sockets
+device: Loupedeck Live
+layout:
+  columns: 4
+  rows: 3
+parameters:
+  verbose: false
+  filter: released
+  minPressedMode: delayed
+  textColor: "#FFFFFF"
+
+description: "Smart Power Sockets & Energy Distribution"
+touch:
+  left:
+    "0":
+      states:
+        default:
+          color: "#1e293b"
+      params:
+        text: SOCKETS
+  right:
+    "0":
+      states:
+        "0":
+          color: "#1e293b"
+          value: 1
+        "1":
+          color: "#15803d"
+          value: 0
+      params:
+        text: ECO MODE
+        opcua: ns={namespace};s=Home.Power.EcoMode.Set
+        nodeid: ns={namespace};s=Home.Power.EcoMode.State
+  center:
+    # Row 1: Kitchen & Office Sockets
+    "0":
+      states:
+        "0":
+          color: "#334155"
+          opcua: ns={namespace};s=Home.Sockets.CoffeeMaker.Set
+          value: true
+        "1":
+          color: "#f59e0b"
+          blink: true
+          opcua: ns={namespace};s=Home.Sockets.CoffeeMaker.Set
+          value: false
+        "2":
+          color: "#22c55e"
+          textColor: "#111827"
+          opcua: ns={namespace};s=Home.Sockets.CoffeeMaker.Set
+          value: false
+      params:
+        text: Coffee Maker
+        nodeid: ns={namespace};s=Home.Sockets.CoffeeMaker.State
+    "1":
+      states:
+        "0":
+          color: "#334155"
+          opcua: ns={namespace};s=Home.Sockets.WorkstationPC.Set
+          value: true
+        "1":
+          color: "#22c55e"
+          textColor: "#111827"
+          opcua: ns={namespace};s=Home.Sockets.WorkstationPC.Set
+          value: false
+      params:
+        text: Desk PC
+        nodeid: ns={namespace};s=Home.Sockets.WorkstationPC.State
+        minPressed: 1500
+        minPressedMode: delayed
+    "2":
+      states:
+        "0":
+          color: "#334155"
+          opcua: ns={namespace};s=Home.Sockets.Printer3D.Set
+          value: true
+        "1":
+          color: "#eab308"
+          textColor: "#111827"
+          opcua: ns={namespace};s=Home.Sockets.Printer3D.Set
+          value: false
+        "2":
+          color: "#22c55e"
+          textColor: "#111827"
+          opcua: ns={namespace};s=Home.Sockets.Printer3D.Set
+          value: false
+      params:
+        text: 3D Printer
+        nodeid: ns={namespace};s=Home.Sockets.Printer3D.State
+        minPressed: 2000
+        minPressedMode: delayed
+    "3":
+      states:
+        "0":
+          color: "#ca8a04"
+          opcua: ns={namespace};s=Home.Sockets.HomeNAS.Set
+          value: true
+        "1":
+          color: "#16a34a"
+          opcua: ns={namespace};s=Home.Sockets.HomeNAS.Set
+          value: false
+      params:
+        text: Home NAS
+        nodeid: ns={namespace};s=Home.Sockets.HomeNAS.State
+        minPressed: 2000
+        minPressedMode: delayed
+
+    # Row 2: Media, Appliances & EV Charging
+    "4":
+      states:
+        "0":
+          color: "#334155"
+          opcua: ns={namespace};s=Home.Sockets.TVRack.Set
+          value: true
+        "1":
+          color: "#22c55e"
+          textColor: "#111827"
+          opcua: ns={namespace};s=Home.Sockets.TVRack.Set
+          value: false
+      params:
+        text: TV & Audio
+        nodeid: ns={namespace};s=Home.Sockets.TVRack.State
+    "5":
+      states:
+        "0":
+          color: "#334155"
+          opcua: ns={namespace};s=Home.Sockets.Dishwasher.Set
+          value: true
+        "1":
+          color: "#38bdf8"
+          textColor: "#111827"
+          opcua: ns={namespace};s=Home.Sockets.Dishwasher.Set
+          value: false
+      params:
+        text: Dishwasher
+        nodeid: ns={namespace};s=Home.Sockets.Dishwasher.State
+    "6":
+      states:
+        "0":
+          color: "#334155"
+          opcua: ns={namespace};s=Home.Sockets.Washer.Set
+          value: true
+        "1":
+          color: "#38bdf8"
+          textColor: "#111827"
+          opcua: ns={namespace};s=Home.Sockets.Washer.Set
+          value: false
+      params:
+        text: Washer
+        nodeid: ns={namespace};s=Home.Sockets.Washer.State
+    "7":
+      states:
+        "0":
+          color: "#334155"
+          opcua: ns={namespace};s=Home.Sockets.EVWallbox.Set
+          value: true
+        "1":
+          color: "#10b981"
+          textColor: "#111827"
+          opcua: ns={namespace};s=Home.Sockets.EVWallbox.Set
+          value: false
+        "2":
+          color: "#ef4444"
+          blink: true
+          opcua: ns={namespace};s=Home.Sockets.EVWallbox.Reset
+          value: true
+      params:
+        text: EV Wallbox
+        nodeid: ns={namespace};s=Home.Sockets.EVWallbox.State
+
+    # Row 3: HVAC, Outdoor & Standby Cut-Off
+    "8":
+      states:
+        "0":
+          color: "#0284c7"
+          opcua: ns={namespace};s=Home.Sockets.HeatPump.Boost
+          value: true
+        "1":
+          color: "#f97316"
+          textColor: "#111827"
+          opcua: ns={namespace};s=Home.Sockets.HeatPump.Boost
+          value: false
+      params:
+        text: Heat Pump
+        nodeid: ns={namespace};s=Home.Sockets.HeatPump.State
+    "9":
+      states:
+        "0":
+          color: "#334155"
+          opcua: ns={namespace};s=Home.Sockets.GardenPump.Set
+          value: true
+        "1":
+          color: "#06b6d4"
+          textColor: "#111827"
+          opcua: ns={namespace};s=Home.Sockets.GardenPump.Set
+          value: false
+      params:
+        text: Garden Pump
+        nodeid: ns={namespace};s=Home.Sockets.GardenPump.State
+    "10":
+      states:
+        "0":
+          color: "#475569"
+          opcua: ns={namespace};s=Home.Sockets.SolarPriority.Set
+          value: true
+        "1":
+          color: "#eab308"
+          textColor: "#111827"
+          opcua: ns={namespace};s=Home.Sockets.SolarPriority.Set
+          value: false
+      params:
+        text: PV Priority
+        nodeid: ns={namespace};s=Home.Sockets.SolarPriority.State
+    "11":
+      states:
+        "0":
+          color: "#7f1d1d"
+          opcua: ns={namespace};s=Home.Sockets.KillStandby.Trigger
+          value: true
+        "1":
+          color: "#dc2626"
+          blink: true
+          opcua: ns={namespace};s=Home.Sockets.KillStandby.Trigger
+          value: true
+      params:
+        text: Kill Standby
+        nodeid: ns={namespace};s=Home.Sockets.StandbyActive.State
+        minPressed: 1500
+        minPressedMode: delayed
+
+knobs:
+  knobTL:
+    states:
+      "0":
+        cmd: 'echo "EV Charge Limit: {value} A"'
+        opcua: ns={namespace};s=Home.Sockets.EVWallbox.CurrentLimitIn
+    params:
+      nodeid: ns={namespace};s=Home.Sockets.EVWallbox.CurrentLimitOut
+  knobCL:
+    states:
+      "0":
+        cmd: 'echo "Heat Pump Target: {value} C"'
+        opcua: ns={namespace};s=Home.Sockets.HeatPump.TargetTempIn
+    params:
+      nodeid: ns={namespace};s=Home.Sockets.HeatPump.TargetTempOut
+  knobBL:
+    states:
+      "0":
+        cmd: 'echo "Ventilation Fan Level: {value}%"'
+        opcua: ns={namespace};s=Home.Sockets.Ventilation.SpeedIn
+    params:
+      nodeid: ns={namespace};s=Home.Sockets.Ventilation.SpeedOut
+

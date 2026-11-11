@@ -1,0 +1,242 @@
+name: lights
+profile: lights
+device: Loupedeck Live
+layout:
+  columns: 4
+  rows: 3
+parameters:
+  verbose: false
+  filter: pressed
+  textColor: "#FFFFFF"
+
+description: "Smart Home Lighting & Scene Control"
+touch:
+  left:
+    "0":
+      states:
+        default:
+          color: "#1e293b"
+      params:
+        text: LIGHTS
+  right:
+    "0":
+      states:
+        "0":
+          color: "#1e293b"
+          value: 1
+        "1":
+          color: "#0284c7"
+          value: 0
+      params:
+        text: AUTO LUX
+        opcua: ns={namespace};s=Home.Lights.AutoDaylight.Set
+        nodeid: ns={namespace};s=Home.Lights.AutoDaylight.State
+  center:
+    # Row 1: Main Room Lights
+    "0":
+      states:
+        "0":
+          color: "#334155"
+          value: 1
+        "1":
+          color: "#f59e0b"
+          textColor: "#111827"
+          value: 0
+      params:
+        text: Living Room
+        opcua: ns={namespace};s=Home.Lights.LivingRoom.Switch
+        nodeid: ns={namespace};s=Home.Lights.LivingRoom.State
+    "1":
+      states:
+        "0":
+          color: "#334155"
+          value: 1
+        "1":
+          color: "#38bdf8"
+          textColor: "#111827"
+          value: 0
+      params:
+        text: Kitchen
+        opcua: ns={namespace};s=Home.Lights.Kitchen.Switch
+        nodeid: ns={namespace};s=Home.Lights.Kitchen.State
+    "2":
+      states:
+        "0":
+          color: "#334155"
+          value: 1
+        "1":
+          color: "#fb923c"
+          textColor: "#111827"
+          value: 0
+      params:
+        text: Bedroom
+        opcua: ns={namespace};s=Home.Lights.Bedroom.Switch
+        nodeid: ns={namespace};s=Home.Lights.Bedroom.State
+    "3":
+      states:
+        "0":
+          color: "#334155"
+          value: 1
+        "1":
+          color: "#60a5fa"
+          textColor: "#111827"
+          value: 0
+      params:
+        text: Office
+        opcua: ns={namespace};s=Home.Lights.Office.Switch
+        nodeid: ns={namespace};s=Home.Lights.Office.State
+
+    # Row 2: Secondary & Outdoor Zones
+    "4":
+      states:
+        "0":
+          color: "#334155"
+          value: 1
+        "1":
+          color: "#eab308"
+          textColor: "#111827"
+          value: 0
+      params:
+        text: Hallway
+        opcua: ns={namespace};s=Home.Lights.Hallway.Switch
+        nodeid: ns={namespace};s=Home.Lights.Hallway.State
+    "5":
+      states:
+        "0":
+          color: "#334155"
+          value: 1
+        "1":
+          color: "#22d3ee"
+          textColor: "#111827"
+          value: 0
+      params:
+        text: Bathroom
+        opcua: ns={namespace};s=Home.Lights.Bathroom.Switch
+        nodeid: ns={namespace};s=Home.Lights.Bathroom.State
+    "6":
+      states:
+        "0":
+          color: "#334155"
+          value: 1
+        "1":
+          color: "#4ade80"
+          textColor: "#111827"
+          value: 0
+      params:
+        text: Garden
+        opcua: ns={namespace};s=Home.Lights.Garden.Switch
+        nodeid: ns={namespace};s=Home.Lights.Garden.State
+    "7":
+      states:
+        "0":
+          color: "#334155"
+          value: 1
+        "1":
+          color: "#a3e635"
+          textColor: "#111827"
+          value: 0
+      params:
+        text: Garage
+        opcua: ns={namespace};s=Home.Lights.Garage.Switch
+        nodeid: ns={namespace};s=Home.Lights.Garage.State
+
+    # Row 3: Scenes & Master Controls
+    "8":
+      states:
+        "0":
+          color: "#312e81"
+          value: 1
+        "1":
+          color: "#a855f7"
+          value: 1
+      params:
+        text: Movie Scene
+        opcua: ns={namespace};s=Home.Lights.Scene.Select
+        nodeid: ns={namespace};s=Home.Lights.Scene.Active
+    "9":
+      states:
+        "0":
+          color: "#431407"
+          value: 2
+        "2":
+          color: "#f97316"
+          textColor: "#111827"
+          value: 2
+      params:
+        text: Reading
+        opcua: ns={namespace};s=Home.Lights.Scene.Select
+        nodeid: ns={namespace};s=Home.Lights.Scene.Active
+    "10":
+      states:
+        "0":
+          color: "#4a044e"
+          value: 3
+        "3":
+          color: "#ec4899"
+          value: 3
+      params:
+        text: Party Mode
+        opcua: ns={namespace};s=Home.Lights.Scene.Select
+        nodeid: ns={namespace};s=Home.Lights.Scene.Active
+    "11":
+      states:
+        "0":
+          color: "#7f1d1d"
+          opcua: ns={namespace};s=Home.Lights.AllOff.Trigger
+          value: true
+        "1":
+          color: "#dc2626"
+          blink: true
+          opcua: ns={namespace};s=Home.Lights.AllOff.Trigger
+          value: true
+      params:
+        text: ALL OFF
+        nodeid: ns={namespace};s=Home.Lights.AnyOn.State
+        minPressed: 1000
+        minPressedMode: delayed
+        filter: released
+
+knobs:
+  knobTL:
+    states:
+      "0":
+        cmd: 'echo "Living Room Dimmer: {value}%"'
+        opcua: ns={namespace};s=Home.Lights.LivingRoom.BrightnessIn
+    params:
+      nodeid: ns={namespace};s=Home.Lights.LivingRoom.BrightnessOut
+  knobCL:
+    states:
+      "0":
+        cmd: 'echo "Kitchen Dimmer: {value}%"'
+        opcua: ns={namespace};s=Home.Lights.Kitchen.BrightnessIn
+    params:
+      nodeid: ns={namespace};s=Home.Lights.Kitchen.BrightnessOut
+  knobBL:
+    states:
+      "0":
+        cmd: 'echo "Bedroom Dimmer: {value}%"'
+        opcua: ns={namespace};s=Home.Lights.Bedroom.BrightnessIn
+    params:
+      nodeid: ns={namespace};s=Home.Lights.Bedroom.BrightnessOut
+  knobTR:
+    states:
+      "0":
+        cmd: 'echo "Office Dimmer: {value}%"'
+        opcua: ns={namespace};s=Home.Lights.Office.BrightnessIn
+    params:
+      nodeid: ns={namespace};s=Home.Lights.Office.BrightnessOut
+  knobCR:
+    states:
+      "0":
+        cmd: 'echo "Color Temp Step: {value}"'
+        opcua: ns={namespace};s=Home.Lights.ColorTemp.In
+    params:
+      nodeid: ns={namespace};s=Home.Lights.ColorTemp.Out
+  knobBR:
+    states:
+      "0":
+        cmd: 'echo "Master Dimmer: {value}%"'
+        opcua: ns={namespace};s=Home.Lights.Master.BrightnessIn
+    params:
+      nodeid: ns={namespace};s=Home.Lights.Master.BrightnessOut
+

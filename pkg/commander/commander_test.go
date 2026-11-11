@@ -19,23 +19,14 @@ import (
 
 func resolveTestRepoRoot(t *testing.T) string {
 	t.Helper()
-	candidates := []string{
-		"../..",
-		"../../../saph-loupedeck-client",
-		"../../saph-loupedeck-client",
-		"../../..",
+	abs, err := filepath.Abs("../..")
+	if err != nil {
+		t.Fatal(err)
 	}
-	for _, rel := range candidates {
-		abs, err := filepath.Abs(rel)
-		if err != nil {
-			continue
-		}
-		if _, err := os.Stat(filepath.Join(abs, "config/config-is-batt-1.yaml")); err == nil {
-			return abs
-		}
+	if _, err := os.Stat(filepath.Join(abs, "config/config.yaml")); err != nil {
+		t.Fatalf("could not locate config/config.yaml in %s: %v", abs, err)
 	}
-	t.Fatal("could not locate config/config-is-batt-1.yaml in candidate test directories")
-	return ""
+	return abs
 }
 
 func TestUtilsAndColorHelpers(t *testing.T) {
@@ -59,9 +50,9 @@ func TestUtilsAndColorHelpers(t *testing.T) {
 
 func TestConfigValidatorAndAutoFix(t *testing.T) {
 	repoRoot := resolveTestRepoRoot(t)
-	report := config.ValidateAppConfigFile("config/config-is-batt-1.yaml", repoRoot)
+	report := config.ValidateAppConfigFile("config/config.yaml", repoRoot)
 	if !report.Valid {
-		t.Fatalf("expected config-is-batt-1.yaml to be valid, got errors: %+v", report.Errors)
+		t.Fatalf("expected config/config.yaml to be valid, got errors: %+v", report.Errors)
 	}
 	if report.Summary.ProfileCount != 2 {
 		t.Fatalf("expected 2 profiles, got %d", report.Summary.ProfileCount)
@@ -120,7 +111,7 @@ func TestShellAndHttpSanitization(t *testing.T) {
 
 func TestHandlerProfileSwitchingAndOPCUASubscriptionUpdate(t *testing.T) {
 	repoRoot := resolveTestRepoRoot(t)
-	cfgPath := filepath.Join(repoRoot, "config/config-is-batt-1.yaml")
+	cfgPath := filepath.Join(repoRoot, "config/config.yaml")
 
 	emu := device.NewEmulatedLoupedeckDevice(device.EmulatedDeviceOptions{Model: "live"})
 	handler, err := commander.NewBaseLoupeDeckHandler(cfgPath, commander.HandlerOptions{
@@ -154,9 +145,9 @@ func TestHandlerProfileSwitchingAndOPCUASubscriptionUpdate(t *testing.T) {
 		t.Fatalf("expected button 2 LED to be rgba(0, 0, 85), got %q", btnColors["2"])
 	}
 
-	// Simulate OPC UA node change on profile 0 (KVM): ns=2;s=IsBatt1.Kvm.out.Connection -> "5"
+	// Simulate OPC UA node change on profile 0 (lights): ns=2;s=Home.Lights.LivingRoom.State -> "1"
 	beforeCenterURL := emu.GetScreenDataURL("center")
-	pushed := handler.Ifaces.OPCUA.SimulateNodeValue("ns=2;s=IsBatt1.Kvm.out.Connection", "5")
+	pushed := handler.Ifaces.OPCUA.SimulateNodeValue("ns=2;s=Home.Lights.LivingRoom.State", "1")
 	if len(pushed) == 0 {
 		t.Fatalf("expected SimulateNodeValue to notify at least 1 button")
 	}
@@ -170,11 +161,11 @@ func TestHandlerProfileSwitchingAndOPCUASubscriptionUpdate(t *testing.T) {
 	fields := snapAfter["fields"].(map[string]any)
 	centerField := fields["center"].(map[string]any)
 	btn0 := centerField["0"].(map[string]any)
-	if btn0["currentState"] != "5" {
-		t.Fatalf("expected center button 0 state to be '5', got %v", btn0["currentState"])
+	if btn0["currentState"] != "1" {
+		t.Fatalf("expected center button 0 state to be '1', got %v", btn0["currentState"])
 	}
 
-	// Switch to profile 1 via physical button 2 press
+	// Switch to profile 1 (sockets) via physical button 2 press
 	emu.TriggerButtonDown(2)
 	emu.TriggerButtonUp(2)
 	handler.UpdateScreens(false)
@@ -193,7 +184,7 @@ func TestEmulatorServerEndpoints(t *testing.T) {
 	repoRoot := resolveTestRepoRoot(t)
 	dryRun := true
 	srv, err := emulator.StartEmulatorServer(emulator.ServerOptions{
-		Config:  "config/config-is-batt-1.yaml",
+		Config:  "config/config.yaml",
 		Port:    0, // random free port
 		Host:    "127.0.0.1",
 		DryRun:  &dryRun,
@@ -225,8 +216,8 @@ func TestEmulatorServerEndpoints(t *testing.T) {
 
 	// 2. POST /api/opcua/simulate
 	simBody, _ := json.Marshal(map[string]any{
-		"nodeId": "ns=2;s=IsBatt1.Kvm.out.Connection",
-		"value":  "-5",
+		"nodeId": "ns=2;s=Home.Lights.LivingRoom.State",
+		"value":  "1",
 	})
 	simResp, err := http.Post(baseURL+"/api/opcua/simulate", "application/json", bytes.NewReader(simBody))
 	if err != nil {
@@ -244,8 +235,8 @@ func TestEmulatorServerEndpoints(t *testing.T) {
 	fields := snap["fields"].(map[string]any)
 	center := fields["center"].(map[string]any)
 	btn0 := center["0"].(map[string]any)
-	if btn0["currentState"] != "-5" {
-		t.Fatalf("expected center button 0 currentState == '-5' after /api/opcua/simulate, got %v", btn0["currentState"])
+	if btn0["currentState"] != "1" {
+		t.Fatalf("expected center button 0 currentState == '1' after /api/opcua/simulate, got %v", btn0["currentState"])
 	}
 }
 
