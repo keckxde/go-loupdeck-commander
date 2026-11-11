@@ -1,0 +1,2027 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Loupedeck Commander — Emulator & Configuration Studio</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg-app: #0d1117;
+      --bg-panel: #161b22;
+      --bg-elevated: #21262d;
+      --bg-input: #0d1117;
+      --border: #30363d;
+      --border-subtle: #21262d;
+      --text-main: #e6edf3;
+      --text-muted: #8b949e;
+      --accent: #388bfd;
+      --accent-hover: #58a6ff;
+      --success: #2ea043;
+      --warning: #d29922;
+      --danger: #f85149;
+      --danger-bg: #3d171a;
+      --device-body: #181a1f;
+      --device-bezel: #090a0d;
+      --radius: 8px;
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: var(--font-sans);
+      background-color: var(--bg-app);
+      color: var(--text-main);
+      line-height: 1.45;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Top Header Bar */
+    header.topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 0.75rem 1.25rem;
+      background: var(--bg-panel);
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .brand h1 {
+      font-size: 1.1rem;
+      margin: 0;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.2rem 0.55rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+    }
+
+    .badge.ok {
+      color: #56d364;
+      border-color: rgba(46, 160, 67, 0.5);
+      background: rgba(46, 160, 67, 0.12);
+    }
+
+    .badge.warn {
+      color: #e3b341;
+      border-color: rgba(210, 153, 34, 0.5);
+      background: rgba(210, 153, 34, 0.12);
+    }
+
+    .badge.err {
+      color: #ff7b72;
+      border-color: rgba(248, 81, 73, 0.5);
+      background: rgba(248, 81, 73, 0.12);
+    }
+
+    .topbar-controls {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      flex-wrap: wrap;
+    }
+
+    button, select, input {
+      font-family: inherit;
+      font-size: 0.875rem;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.4rem 0.8rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--bg-elevated);
+      color: var(--text-main);
+      cursor: pointer;
+      font-weight: 500;
+      transition: background 0.15s, border-color 0.15s;
+    }
+
+    .btn:hover {
+      background: #30363d;
+      border-color: #6e7681;
+    }
+
+    .btn-primary {
+      background: #1f6feb;
+      border-color: #388bfd;
+      color: #ffffff;
+    }
+
+    .btn-primary:hover {
+      background: #388bfd;
+    }
+
+    .btn-success {
+      background: #238636;
+      border-color: #2ea043;
+      color: #ffffff;
+    }
+
+    .btn-success:hover {
+      background: #2ea043;
+    }
+
+    .btn-sm {
+      padding: 0.25rem 0.55rem;
+      font-size: 0.78rem;
+    }
+
+    /* Main Workspace Layout */
+    main.workspace {
+      display: grid;
+      grid-template-columns: minmax(520px, 1.1fr) minmax(420px, 1fr);
+      gap: 1rem;
+      padding: 1rem 1.25rem;
+      flex: 1;
+      align-items: start;
+    }
+
+    @media (max-width: 1120px) {
+      main.workspace {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .panel {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      margin-bottom: 1rem;
+    }
+
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.65rem 1rem;
+      background: var(--bg-elevated);
+      border-bottom: 1px solid var(--border);
+      gap: 0.5rem;
+    }
+
+    .panel-header h2 {
+      margin: 0;
+      font-size: 0.92rem;
+      font-weight: 600;
+    }
+
+    .panel-body {
+      padding: 1rem;
+    }
+
+    /* Loupedeck Hardware Emulator Chassis */
+    .device-chassis {
+      background: linear-gradient(145deg, #22262e, #14171c);
+      border: 2px solid #363b44;
+      border-radius: 20px;
+      padding: 1.35rem;
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      max-width: 720px;
+      margin: 0 auto;
+      user-select: none;
+    }
+
+    .device-statusbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.9rem;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+    }
+
+    .haptic-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.15rem 0.55rem;
+      border-radius: 999px;
+      background: #1c2128;
+      border: 1px solid var(--border);
+      transition: transform 0.15s, border-color 0.15s, color 0.15s;
+    }
+
+    .haptic-pill.active {
+      color: #58a6ff;
+      border-color: #58a6ff;
+      transform: scale(1.06);
+    }
+
+    .device-upper {
+      display: grid;
+      grid-template-columns: 76px 1fr 76px;
+      gap: 0.85rem;
+      align-items: stretch;
+    }
+
+    .knob-column {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.65rem;
+      padding: 0.25rem 0;
+    }
+
+    .knob-unit {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.25rem;
+      width: 100%;
+    }
+
+    .knob-dial-row {
+      display: flex;
+      align-items: center;
+      gap: 0.2rem;
+    }
+
+    .knob-rot-btn {
+      width: 22px;
+      height: 22px;
+      border-radius: 4px;
+      border: 1px solid #3a404c;
+      background: #1d2129;
+      color: var(--text-muted);
+      font-size: 0.72rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+    }
+
+    .knob-rot-btn:hover {
+      background: #2c323e;
+      color: var(--text-main);
+    }
+
+    .knob-circle {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 32% 30%, #3d4350, #171a20);
+      border: 2px solid #4d5565;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.65rem;
+      font-weight: 600;
+      color: #d0d7de;
+      position: relative;
+      transition: transform 0.1s, border-color 0.15s;
+    }
+
+    .knob-circle:active {
+      transform: scale(0.93);
+    }
+
+    .knob-circle.selected,
+    .touch-cell-overlay.selected,
+    .side-strip-wrapper.selected,
+    .phys-btn.selected {
+      outline: 2px solid #58a6ff;
+      outline-offset: 2px;
+    }
+
+    .knob-circle.blinking {
+      animation: pulse-blink 0.6s infinite alternate;
+    }
+
+    @keyframes pulse-blink {
+      from { border-color: #4d5565; }
+      to { border-color: #f2cc60; box-shadow: 0 0 12px rgba(242, 204, 96, 0.65); }
+    }
+
+    .knob-val {
+      font-size: 0.66rem;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+    }
+
+    /* Touch Display Bezel (Left Strip + Center 4x3 + Right Strip) */
+    .display-bezel {
+      background: var(--device-bezel);
+      border: 2px solid #2b3038;
+      border-radius: 12px;
+      padding: 0.55rem;
+      display: grid;
+      grid-template-columns: 60px 360px 60px;
+      gap: 6px;
+      justify-content: center;
+      align-items: center;
+      transition: filter 0.2s;
+    }
+
+    @media (max-width: 650px) {
+      .display-bezel {
+        transform: scale(0.82);
+        transform-origin: top center;
+      }
+    }
+
+    .side-strip-wrapper {
+      position: relative;
+      width: 60px;
+      height: 270px;
+      border-radius: 6px;
+      overflow: hidden;
+      background: #000;
+      border: 1px solid #262b33;
+      cursor: pointer;
+    }
+
+    .side-strip-wrapper img {
+      width: 60px;
+      height: 270px;
+      display: block;
+    }
+
+    .center-screen-wrapper {
+      position: relative;
+      width: 360px;
+      height: 270px;
+      border-radius: 6px;
+      overflow: hidden;
+      background: #000;
+      border: 1px solid #262b33;
+    }
+
+    .center-screen-wrapper img {
+      width: 360px;
+      height: 270px;
+      display: block;
+      pointer-events: none;
+    }
+
+    .center-touch-grid {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      grid-template-columns: repeat(4, 90px);
+      grid-template-rows: repeat(3, 90px);
+    }
+
+    .touch-cell-overlay {
+      position: relative;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      cursor: pointer;
+      display: flex;
+      align-items: flex-end;
+      justify-content: flex-end;
+      padding: 3px 5px;
+      transition: background 0.1s;
+    }
+
+    .touch-cell-overlay:hover {
+      background: rgba(88, 166, 255, 0.12);
+    }
+
+    .cell-badge {
+      font-size: 0.62rem;
+      font-family: var(--font-mono);
+      background: rgba(0, 0, 0, 0.68);
+      color: #c9d1d9;
+      padding: 1px 4px;
+      border-radius: 3px;
+      pointer-events: none;
+    }
+
+    /* Bottom Row of 8 Physical RGB Buttons (0..7) */
+    .physical-buttons-row {
+      display: grid;
+      grid-template-columns: repeat(8, 1fr);
+      gap: 0.6rem;
+      margin-top: 1.1rem;
+      padding: 0 0.5rem;
+    }
+
+    .phys-btn {
+      height: 44px;
+      border-radius: 50%;
+      width: 44px;
+      margin: 0 auto;
+      border: 2px solid #3d4452;
+      background: #1f242c;
+      color: #ffffff;
+      font-weight: 600;
+      font-size: 0.8rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 3px 8px rgba(0, 0, 0, 0.45);
+      transition: transform 0.1s, box-shadow 0.15s, background-color 0.15s;
+    }
+
+    .phys-btn:active {
+      transform: scale(0.92);
+    }
+
+    /* Tabs in Right Column */
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-elevated);
+    }
+
+    .tab-btn {
+      padding: 0.65rem 1rem;
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.84rem;
+    }
+
+    .tab-btn:hover {
+      color: var(--text-main);
+    }
+
+    .tab-btn.active {
+      color: var(--accent-hover);
+      border-bottom-color: var(--accent-hover);
+      background: rgba(56, 139, 253, 0.08);
+    }
+
+    .tab-pane {
+      display: none;
+      padding: 1rem;
+    }
+
+    .tab-pane.active {
+      display: block;
+    }
+
+    /* Forms & Validation following modern-web-guidance (validate-input-after-interaction) */
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      gap: 0.85rem;
+      margin-bottom: 1rem;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .field label {
+      font-size: 0.8rem;
+      font-weight: 600;
+      margin-bottom: 0.2rem;
+      color: var(--text-main);
+    }
+
+    /* MANDATORY per validate-input-after-interaction: Place format hints above the input so autocomplete popovers don't cover them */
+    .hint {
+      display: block;
+      color: var(--text-muted);
+      font-size: 0.74rem;
+      margin-bottom: 0.25rem;
+    }
+
+    .field input[type="text"],
+    .field input[type="number"],
+    .field input[type="url"],
+    .field select,
+    .field textarea {
+      padding: 0.42rem 0.6rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background-color: var(--bg-input);
+      color: var(--text-main);
+    }
+
+    .color-input-group {
+      display: flex;
+      gap: 0.4rem;
+      align-items: center;
+    }
+
+    .color-input-group input[type="color"] {
+      width: 34px;
+      height: 32px;
+      padding: 0;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: transparent;
+      cursor: pointer;
+    }
+
+    .color-input-group input[type="text"] {
+      flex: 1;
+      font-family: var(--font-mono);
+    }
+
+    .error-msg {
+      display: none;
+      color: var(--danger);
+      font-size: 0.76rem;
+      margin-top: 0.25rem;
+    }
+
+    /* Defer validation feedback until after interaction via :user-invalid / :user-valid + fallback */
+    input:user-invalid,
+    input.user-invalid-fallback {
+      border-color: var(--danger);
+      background-color: var(--danger-bg);
+    }
+
+    input:user-invalid + .error-msg,
+    input.user-invalid-fallback + .error-msg,
+    .color-input-group:has(input:user-invalid) + .error-msg,
+    .color-input-group:has(input.user-invalid-fallback) + .error-msg {
+      display: block;
+    }
+
+    input:user-valid,
+    input.user-valid-fallback {
+      border-color: var(--success);
+    }
+
+    /* State Cards inside Button Inspector */
+    .state-card {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.75rem;
+      margin-bottom: 0.75rem;
+      background: rgba(13, 17, 23, 0.55);
+    }
+
+    .state-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.65rem;
+      padding-bottom: 0.45rem;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    /* Validation Issue List */
+    .issue-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.55rem;
+      max-height: 480px;
+      overflow-y: auto;
+    }
+
+    .issue-item {
+      padding: 0.65rem 0.8rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--bg-input);
+      font-size: 0.83rem;
+    }
+
+    .issue-item.error {
+      border-left: 4px solid var(--danger);
+    }
+
+    .issue-item.warning {
+      border-left: 4px solid var(--warning);
+    }
+
+    .issue-item.info {
+      border-left: 4px solid var(--accent);
+    }
+
+    .issue-meta {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-bottom: 0.25rem;
+    }
+
+    .issue-suggestion {
+      margin-top: 0.3rem;
+      font-size: 0.78rem;
+      color: #79c0ff;
+    }
+
+    /* Activity Log */
+    .log-list {
+      font-family: var(--font-mono);
+      font-size: 0.76rem;
+      max-height: 240px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+
+    .log-entry {
+      padding: 0.35rem 0.55rem;
+      border-radius: 4px;
+      background: var(--bg-input);
+      border: 1px solid var(--border-subtle);
+      display: flex;
+      justify-content: space-between;
+      gap: 0.75rem;
+    }
+
+    .log-entry.error {
+      border-color: rgba(248, 81, 73, 0.5);
+      color: #ff7b72;
+    }
+
+    /* Modal Dialog with Light Dismiss (light-dismiss-a-dialog guide) */
+    dialog {
+      background: var(--bg-panel);
+      color: var(--text-main);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem;
+      max-width: 680px;
+      width: 92vw;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7);
+    }
+
+    dialog::backdrop {
+      background-color: rgba(0, 0, 0, 0.6);
+      backdrop-filter: blur(2px);
+    }
+
+    .dialog-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.85rem;
+    }
+
+    .dialog-header h2 {
+      margin: 0;
+      font-size: 1rem;
+    }
+
+    textarea.code-Preview {
+      width: 100%;
+      min-height: 320px;
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      background: var(--bg-input);
+      color: var(--text-main);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.75rem;
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <h1>🎛️ Loupedeck Commander — Emulator &amp; Config Studio</h1>
+      <span id="validationBadge" class="badge">Checking config…</span>
+      <span id="modeBadge" class="badge ok">Simulated Interfaces (Safe)</span>
+    </div>
+    <div class="topbar-controls">
+      <label for="profileSelect" style="font-size:0.8rem;color:var(--text-muted);">Active Profile:</label>
+      <select id="profileSelect" class="btn"></select>
+      <button id="toggleModeBtn" class="btn" type="button" title="Switch between Simulated (Dry-Run) and Live execution for Shell/HTTP/OPC UA">
+        🔄 Switch to Live Mode
+      </button>
+      <button id="autoFixBtn" class="btn" type="button" title="Automatically migrate deprecated button attributes to params and fix common typos">
+        ✨ Auto-Fix Config Issues
+      </button>
+      <button id="exportYamlBtn" class="btn" type="button">
+        📄 View / Export YAML
+      </button>
+      <button id="saveDiskBtn" class="btn btn-success" type="button">
+        💾 Save &amp; Hot-Reload
+      </button>
+    </div>
+  </header>
+
+  <main class="workspace">
+    <!-- Left Column: Interactive Loupedeck Hardware Emulator + Activity Log -->
+    <div>
+      <section class="panel">
+        <div class="panel-header">
+          <h2>Interactive Loupedeck Live / CT Hardware Emulator</h2>
+          <div style="display:flex;gap:0.5rem;align-items:center;font-size:0.78rem;color:var(--text-muted);">
+            <span>Click any touch tile, knob, or button to trigger &amp; inspect</span>
+          </div>
+        </div>
+        <div class="panel-body">
+          <div class="device-chassis">
+            <div class="device-statusbar">
+              <div>
+                <strong id="deviceModelLabel">Loupedeck Live (Emulated)</strong>
+                &bull; Brightness: <span id="brightnessLabel">100%</span>
+              </div>
+              <div id="hapticIndicator" class="haptic-pill">
+                📳 Haptic: Idle
+              </div>
+            </div>
+
+            <div class="device-upper">
+              <!-- Left 3 Rotary Knobs -->
+              <div class="knob-column" id="leftKnobColumn"></div>
+
+              <!-- Touch Display Bezel: Left Strip (60x270) + Center (360x270) + Right Strip (60x270) -->
+              <div class="display-bezel" id="displayBezel">
+                <div class="side-strip-wrapper" id="leftScreenWrapper" title="Left Touch Strip (touch.left.0)">
+                  <img id="screenLeftImg" alt="Left Touch Screen" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
+                </div>
+
+                <div class="center-screen-wrapper" id="centerScreenWrapper">
+                  <img id="screenCenterImg" alt="Center Touch Screen" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
+                  <div class="center-touch-grid" id="centerTouchGrid"></div>
+                </div>
+
+                <div class="side-strip-wrapper" id="rightScreenWrapper" title="Right Touch Strip (touch.right.0)">
+                  <img id="screenRightImg" alt="Right Touch Screen" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7">
+                </div>
+              </div>
+
+              <!-- Right 3 Rotary Knobs -->
+              <div class="knob-column" id="rightKnobColumn"></div>
+            </div>
+
+            <!-- 8 Physical RGB Buttons (0..7) -->
+            <div class="physical-buttons-row" id="physicalButtonsRow"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Real-Time Interface & Command Execution Log -->
+      <section class="panel">
+        <div class="panel-header">
+          <h2>Interface &amp; Command Log (Shell / HTTP / OPC UA)</h2>
+          <button id="clearLogBtn" class="btn btn-sm" type="button">Clear</button>
+        </div>
+        <div class="panel-body">
+          <div id="activityLog" class="log-list">
+            <div style="color:var(--text-muted);font-size:0.8rem;">Interact with any button or knob above to see executed commands and interface calls…</div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- Right Column: Configuration Editor, Validity Checker & OPC UA Simulator -->
+    <div>
+      <section class="panel">
+        <div class="tabs" role="tablist">
+          <button class="tab-btn active" data-tab="inspectorTab" role="tab" aria-selected="true">🛠️ Button &amp; State Editor</button>
+          <button class="tab-btn" data-tab="validatorTab" role="tab" aria-selected="false">✅ Validity Check (<span id="issueCountLabel">0</span>)</button>
+          <button class="tab-btn" data-tab="opcuaTab" role="tab" aria-selected="false">🔌 OPC UA Simulator</button>
+          <button class="tab-btn" data-tab="profileParamsTab" role="tab" aria-selected="false">⚙️ Profile Parameters</button>
+        </div>
+
+        <!-- TAB 1: Button & State Inspector / Editor -->
+        <div id="inspectorTab" class="tab-pane active">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.85rem;">
+            <div>
+              <strong id="selectedElementTitle" style="font-size:0.95rem;">Touch Center #0</strong>
+              <div id="selectedElementLiveState" style="font-size:0.78rem;color:var(--text-muted);">Live State: —</div>
+            </div>
+            <div style="display:flex;gap:0.4rem;">
+              <select id="quickSelectElement" class="btn btn-sm" aria-label="Select hardware element to edit"></select>
+            </div>
+          </div>
+
+          <form id="buttonEditorForm" novalidate>
+            <div class="form-grid">
+              <div class="field">
+                <label for="btnParamDefault">Default State</label>
+                <span id="btnParamDefault-hint" class="hint">Initial state key when profile loads</span>
+                <input type="text" id="btnParamDefault" aria-describedby="btnParamDefault-hint">
+              </div>
+
+              <div class="field">
+                <label for="btnParamType">Button Mode (type)</label>
+                <span id="btnParamType-hint" class="hint">TOGGLE stays on next state; PUSH reverts on release</span>
+                <select id="btnParamType" aria-describedby="btnParamType-hint">
+                  <option value="TOGGLE">TOGGLE</option>
+                  <option value="PUSH">PUSH</option>
+                </select>
+              </div>
+
+              <div class="field">
+                <label for="btnParamGroup">Toggle Group</label>
+                <span id="btnParamGroup-hint" class="hint">Buttons sharing a group switch each other off</span>
+                <input type="text" id="btnParamGroup" placeholder="{key}" aria-describedby="btnParamGroup-hint">
+              </div>
+
+              <div class="field">
+                <label for="btnParamMinPressed">Min Hold Time (ms)</label>
+                <span id="btnParamMinPressed-hint" class="hint">Minimum press duration (0 - 10000 ms)</span>
+                <input
+                  type="number"
+                  id="btnParamMinPressed"
+                  min="0"
+                  max="10000"
+                  aria-describedby="btnParamMinPressed-hint"
+                  aria-errormessage="btnParamMinPressed-err"
+                >
+                <div id="btnParamMinPressed-err" class="error-msg">
+                  <span aria-hidden="true">❌</span> Enter a value between 0 and 10000 ms.
+                </div>
+              </div>
+
+              <div class="field">
+                <label for="btnParamMinPressedMode">Hold Mode (minPressedMode)</label>
+                <span id="btnParamMinPressedMode-hint" class="hint">immediate: switch now &amp; vibrate after time; delayed: switch only after hold</span>
+                <select id="btnParamMinPressedMode" aria-describedby="btnParamMinPressedMode-hint">
+                  <option value="immediate">immediate (Switch now, vibrate after time)</option>
+                  <option value="delayed">delayed (Hold required to switch)</option>
+                </select>
+              </div>
+
+              <div class="field">
+                <label for="btnParamText">Button Label (params.text)</label>
+                <span id="btnParamText-hint" class="hint">Supports placeholders like {key}, {state}, {value}</span>
+                <input type="text" id="btnParamText" placeholder="{key}" aria-describedby="btnParamText-hint">
+              </div>
+
+              <div class="field">
+                <label for="btnParamNodeId">OPC UA NodeID (params.nodeid)</label>
+                <span id="btnParamNodeId-hint" class="hint">Format: ns=&lt;num&gt;;s=&lt;identifier&gt;</span>
+                <input
+                  type="text"
+                  id="btnParamNodeId"
+                  pattern="ns=[0-9]+;[sibg]=.+"
+                  placeholder="ns=2;s=MyDevice.Variable"
+                  aria-describedby="btnParamNodeId-hint"
+                  aria-errormessage="btnParamNodeId-err"
+                >
+                <div id="btnParamNodeId-err" class="error-msg">
+                  <span aria-hidden="true">❌</span> Must match OPC UA format: ns=&lt;index&gt;;s=&lt;id&gt;
+                </div>
+              </div>
+            </div>
+
+            <div style="display:flex;align-items:center;justify-content:space-between;margin:0.9rem 0 0.5rem;">
+              <h3 style="margin:0;font-size:0.88rem;">Configured States</h3>
+              <button type="button" id="addStateBtn" class="btn btn-sm">+ Add State</button>
+            </div>
+
+            <div id="statesContainer"></div>
+          </form>
+        </div>
+
+        <!-- TAB 2: Configuration Validity Checker -->
+        <div id="validatorTab" class="tab-pane">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.85rem;flex-wrap:wrap;gap:0.5rem;">
+            <div id="validatorSummaryText" style="font-size:0.85rem;"></div>
+            <button id="reRunValidateBtn" class="btn btn-sm" type="button">🔍 Re-Validate Now</button>
+          </div>
+          <div id="validationIssuesList" class="issue-list"></div>
+        </div>
+
+        <!-- TAB 3: OPC UA Subscription & Node Simulator -->
+        <div id="opcuaTab" class="tab-pane">
+          <p style="margin-top:0;font-size:0.82rem;color:var(--text-muted);">
+            Simulate incoming OPC UA subscription notifications (`nodeid` state enforcement or `blink` triggers) to test how your Loupedeck buttons and knobs react without needing a live PLC/OPC UA server.
+          </p>
+          <div id="opcuaNodesContainer" class="issue-list"></div>
+        </div>
+
+        <!-- TAB 4: Profile Parameters Editor -->
+        <div id="profileParamsTab" class="tab-pane">
+          <form id="profileParamsForm" novalidate>
+            <div class="form-grid">
+              <div class="field">
+                <label for="profParamHostname">Hostname</label>
+                <span id="profParamHostname-hint" class="hint">Target host for HTTP / OPC UA</span>
+                <input type="text" id="profParamHostname" required aria-describedby="profParamHostname-hint">
+              </div>
+
+              <div class="field">
+                <label for="profParamEndpoint">OPC UA Endpoint URL</label>
+                <span id="profParamEndpoint-hint" class="hint">Format: opc.tcp://{hostname}:4840</span>
+                <input
+                  type="text"
+                  id="profParamEndpoint"
+                  pattern="opc\.tcp://.+"
+                  aria-describedby="profParamEndpoint-hint"
+                  aria-errormessage="profParamEndpoint-err"
+                >
+                <div id="profParamEndpoint-err" class="error-msg">
+                  <span aria-hidden="true">❌</span> Must start with opc.tcp://
+                </div>
+              </div>
+
+              <div class="field">
+                <label for="profParamTextColor">Default Text Color</label>
+                <span id="profParamTextColor-hint" class="hint">6-digit hex color (#RRGGBB)</span>
+                <div class="color-input-group">
+                  <input type="color" id="profParamTextColorPicker" value="#ffffff" aria-label="Pick default text color">
+                  <input
+                    type="text"
+                    id="profParamTextColor"
+                    pattern="#[0-9a-fA-F]{6}"
+                    aria-describedby="profParamTextColor-hint"
+                    aria-errormessage="profParamTextColor-err"
+                  >
+                </div>
+                <div id="profParamTextColor-err" class="error-msg">
+                  <span aria-hidden="true">❌</span> Must be a 6-digit hex color (#RRGGBB).
+                </div>
+              </div>
+
+              <div class="field">
+                <label for="profParamFont">Default Font</label>
+                <span id="profParamFont-hint" class="hint">Canvas font string (e.g. 14px Arial)</span>
+                <input type="text" id="profParamFont" aria-describedby="profParamFont-hint">
+              </div>
+
+              <div class="field">
+                <label for="profParamTextAlign">Default Text Align</label>
+                <span id="profParamTextAlign-hint" class="hint">Horizontal text alignment</span>
+                <select id="profParamTextAlign" aria-describedby="profParamTextAlign-hint">
+                  <option value="center">center</option>
+                  <option value="left">left</option>
+                  <option value="right">right</option>
+                </select>
+              </div>
+
+              <div class="field">
+                <label for="profParamTextBaseline">Default Text Baseline</label>
+                <span id="profParamTextBaseline-hint" class="hint">Vertical text alignment</span>
+                <select id="profParamTextBaseline" aria-describedby="profParamTextBaseline-hint">
+                  <option value="top">top</option>
+                  <option value="middle">middle</option>
+                  <option value="bottom">bottom</option>
+                </select>
+              </div>
+            </div>
+          </form>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <!-- Modal Dialog with declarative closedby="any" light-dismiss (per light-dismiss-a-dialog guide) -->
+  <dialog id="yamlModal" closedby="any" aria-labelledby="yamlModalTitle">
+    <form method="dialog">
+      <div class="dialog-header">
+        <h2 id="yamlModalTitle">Profile YAML Configuration</h2>
+        <button type="submit" class="btn btn-sm">✕ Close</button>
+      </div>
+      <p style="margin-top:0;font-size:0.8rem;color:var(--text-muted);">
+        You can copy or edit the raw YAML for the current profile below, or click outside this dialog / press Esc to dismiss.
+      </p>
+      <textarea id="yamlModalTextarea" class="code-Preview" spellcheck="false"></textarea>
+      <div style="display:flex;justify-content:flex-end;gap:0.5rem;margin-top:0.85rem;">
+        <button type="button" id="copyYamlBtn" class="btn">📋 Copy YAML</button>
+        <button type="button" id="applyRawYamlBtn" class="btn btn-primary">Apply Raw YAML &amp; Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script>
+    // 1. Initialize :user-invalid fallback & ARIA sync (per validate-input-after-interaction guide)
+    const UserInvalidFallback = (() => {
+      const dirtyState = new WeakMap();
+      const updateState = (input) => {
+        if (!input.checkValidity) return;
+        const isValid = input.checkValidity();
+        input.classList.toggle('user-invalid-fallback', !isValid);
+        input.classList.toggle('user-valid-fallback', isValid);
+        if (!isValid) {
+          input.setAttribute('aria-invalid', 'true');
+        } else {
+          input.removeAttribute('aria-invalid');
+        }
+      };
+      const handleEvent = (event) => {
+        const input = event.target;
+        if (event.type === 'reset') {
+          const controls = input.elements || [];
+          for (const control of controls) {
+            dirtyState.delete(control);
+            control.classList.remove('user-invalid-fallback', 'user-valid-fallback');
+            control.removeAttribute('aria-invalid');
+          }
+          return;
+        }
+        if (!input || !input.checkValidity) return;
+        if (event.type === 'input' || event.type === 'change') {
+          const state = dirtyState.get(input) || { hasInteracted: false, hasBlurred: false };
+          state.hasInteracted = true;
+          dirtyState.set(input, state);
+          if (state.hasBlurred) updateState(input);
+        } else if (event.type === 'blur') {
+          const state = dirtyState.get(input) || { hasInteracted: false, hasBlurred: false };
+          state.hasBlurred = true;
+          dirtyState.set(input, state);
+          if (state.hasInteracted) updateState(input);
+        }
+      };
+      const init = (root = document) => {
+        if (!CSS.supports('selector(:user-invalid)')) {
+          root.addEventListener('blur', handleEvent, true);
+          root.addEventListener('input', handleEvent);
+          root.addEventListener('change', handleEvent);
+          root.addEventListener('reset', handleEvent, true);
+        }
+        const syncAria = (el) => {
+          if (el && typeof el.matches === 'function' && el.tagName === 'INPUT') {
+            try {
+              el.setAttribute('aria-invalid', el.matches(':user-invalid') ? 'true' : 'false');
+            } catch {}
+          }
+        };
+        root.addEventListener('blur', (e) => syncAria(e.target), true);
+        root.addEventListener('input', (e) => {
+          if (e.target && e.target.hasAttribute && e.target.hasAttribute('aria-invalid')) {
+            syncAria(e.target);
+          }
+        });
+      };
+      return { init };
+    })();
+    UserInvalidFallback.init(document);
+
+    // 2. Initialize <dialog closedby="any"> fallback for browsers without native closedBy support (per light-dismiss-a-dialog guide)
+    const yamlModal = document.getElementById('yamlModal');
+    if (!('closedBy' in HTMLDialogElement.prototype)) {
+      yamlModal.addEventListener('click', (event) => {
+        if (event.target !== yamlModal) return;
+        const rect = yamlModal.getBoundingClientRect();
+        const isDialogContent = (
+          rect.top <= event.clientY &&
+          event.clientY <= rect.top + rect.height &&
+          rect.left <= event.clientX &&
+          event.clientX <= rect.left + rect.width
+        );
+        if (isDialogContent) return;
+        yamlModal.close();
+      });
+    }
+
+    // 3. Application State
+    let appState = {
+      snapshot: null,
+      validation: null,
+      profilesData: [],
+      availableIcons: [],
+      dryRun: true,
+      selectedElement: { section: 'center', key: '0' }
+    };
+
+    const LEFT_KNOBS = ['knobTL', 'knobCL', 'knobBL'];
+    const RIGHT_KNOBS = ['knobTR', 'knobCR', 'knobBR'];
+
+    // Build static hardware controls
+    function buildHardwareDOM() {
+      const centerGrid = document.getElementById('centerTouchGrid');
+      centerGrid.innerHTML = '';
+      for (let i = 0; i < 12; i++) {
+        const cell = document.createElement('div');
+        cell.className = 'touch-cell-overlay';
+        cell.dataset.section = 'center';
+        cell.dataset.key = String(i);
+        cell.innerHTML = `<span class="cell-badge" id="cellBadge-${i}">#${i}</span>`;
+
+        let isDown = false;
+        cell.addEventListener('pointerdown', (e) => {
+          isDown = true;
+          selectElement('center', String(i));
+          const rect = cell.getBoundingClientRect();
+          const x = Math.round(((e.clientX - rect.left) / rect.width) * 90);
+          const y = Math.round(((e.clientY - rect.top) / rect.height) * 90);
+          sendHardwareEvent({ type: 'touchstart', screen: 'center', key: i, x, y });
+        });
+        cell.addEventListener('pointermove', (e) => {
+          if (!isDown) return;
+          const rect = cell.getBoundingClientRect();
+          const x = Math.round(((e.clientX - rect.left) / rect.width) * 90);
+          const y = Math.round(((e.clientY - rect.top) / rect.height) * 90);
+          sendHardwareEvent({ type: 'touchmove', screen: 'center', key: i, x, y });
+        });
+        const endTouch = () => {
+          if (!isDown) return;
+          isDown = false;
+          sendHardwareEvent({ type: 'touchend', screen: 'center', key: i });
+        };
+        cell.addEventListener('pointerup', endTouch);
+        cell.addEventListener('pointerleave', endTouch);
+        centerGrid.appendChild(cell);
+      }
+
+      // Side strips
+      for (const side of ['left', 'right']) {
+        const wrapper = document.getElementById(`${side}ScreenWrapper`);
+        let isDown = false;
+        wrapper.addEventListener('pointerdown', (e) => {
+          isDown = true;
+          selectElement(side, '0');
+          const rect = wrapper.getBoundingClientRect();
+          const x = Math.round(e.clientX - rect.left);
+          const y = Math.round(e.clientY - rect.top);
+          sendHardwareEvent({ type: 'touchstart', screen: side, key: 0, x, y });
+        });
+        wrapper.addEventListener('pointerup', () => {
+          if (!isDown) return;
+          isDown = false;
+          sendHardwareEvent({ type: 'touchend', screen: side, key: 0 });
+        });
+        wrapper.addEventListener('pointerleave', () => {
+          if (!isDown) return;
+          isDown = false;
+          sendHardwareEvent({ type: 'touchend', screen: side, key: 0 });
+        });
+      }
+
+      // Knobs
+      const renderKnobCol = (containerId, knobIds) => {
+        const col = document.getElementById(containerId);
+        col.innerHTML = '';
+        for (const kid of knobIds) {
+          const unit = document.createElement('div');
+          unit.className = 'knob-unit';
+          unit.innerHTML = `
+            <div class="knob-dial-row">
+              <button type="button" class="knob-rot-btn" data-knob="${kid}" data-delta="-1" title="Rotate ${kid} counter-clockwise">⟲</button>
+              <div class="knob-circle" id="knobCircle-${kid}" data-knob="${kid}" title="Click to press ${kid}; scroll wheel to rotate">
+                <span>${kid.replace('knob', '')}</span>
+              </div>
+              <button type="button" class="knob-rot-btn" data-knob="${kid}" data-delta="1" title="Rotate ${kid} clockwise">⟳</button>
+            </div>
+            <div class="knob-val" id="knobVal-${kid}">val: 50</div>
+          `;
+          col.appendChild(unit);
+        }
+      };
+      renderKnobCol('leftKnobColumn', LEFT_KNOBS);
+      renderKnobCol('rightKnobColumn', RIGHT_KNOBS);
+
+      document.querySelectorAll('.knob-rot-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const kid = btn.dataset.knob;
+          const delta = Number(btn.dataset.delta);
+          selectElement('knobs', kid);
+          sendHardwareEvent({ type: 'rotate', id: kid, delta });
+        });
+      });
+
+      document.querySelectorAll('.knob-circle').forEach(dial => {
+        const kid = dial.dataset.knob;
+        let pressed = false;
+        dial.addEventListener('pointerdown', () => {
+          pressed = true;
+          selectElement('knobs', kid);
+          sendHardwareEvent({ type: 'down', id: kid });
+        });
+        const releaseKnob = () => {
+          if (!pressed) return;
+          pressed = false;
+          sendHardwareEvent({ type: 'up', id: kid });
+        };
+        dial.addEventListener('pointerup', releaseKnob);
+        dial.addEventListener('pointerleave', releaseKnob);
+        dial.addEventListener('wheel', (e) => {
+          e.preventDefault();
+          selectElement('knobs', kid);
+          sendHardwareEvent({ type: 'rotate', id: kid, delta: e.deltaY < 0 ? 1 : -1 });
+        }, { passive: false });
+      });
+
+      // Physical buttons 0..7
+      const physRow = document.getElementById('physicalButtonsRow');
+      physRow.innerHTML = '';
+      for (let i = 0; i < 8; i++) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'phys-btn';
+        btn.id = `physBtn-${i}`;
+        btn.textContent = i === 0 ? '🔆 0' : String(i);
+        btn.title = i === 0 ? 'Physical Button 0 (Brightness / Custom)' : `Physical Button ${i} (Profile / Custom)`;
+        let pressed = false;
+        btn.addEventListener('pointerdown', () => {
+          pressed = true;
+          selectElement('buttons', String(i));
+          sendHardwareEvent({ type: 'down', id: i });
+        });
+        const releasePhys = () => {
+          if (!pressed) return;
+          pressed = false;
+          sendHardwareEvent({ type: 'up', id: i });
+        };
+        btn.addEventListener('pointerup', releasePhys);
+        btn.addEventListener('pointerleave', releasePhys);
+        physRow.appendChild(btn);
+      }
+
+      // Quick element selector dropdown
+      const qs = document.getElementById('quickSelectElement');
+      qs.innerHTML = '';
+      for (let i = 0; i < 12; i++) {
+        qs.appendChild(new Option(`Center Touch #${i}`, `center:${i}`));
+      }
+      qs.appendChild(new Option('Left Touch Strip #0', 'left:0'));
+      qs.appendChild(new Option('Right Touch Strip #0', 'right:0'));
+      for (const kid of [...LEFT_KNOBS, ...RIGHT_KNOBS]) {
+        qs.appendChild(new Option(`Rotary Knob ${kid}`, `knobs:${kid}`));
+      }
+      for (let i = 0; i < 8; i++) {
+        qs.appendChild(new Option(`Physical Button #${i}`, `buttons:${i}`));
+      }
+      qs.addEventListener('change', () => {
+        const [section, key] = qs.value.split(':');
+        selectElement(section, key);
+      });
+    }
+
+    async function sendHardwareEvent(payload) {
+      try {
+        const res = await fetch('/api/event', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (data.snapshot) {
+          updateSnapshotUI(data.snapshot);
+        }
+      } catch (err) {
+        console.error('Hardware event error:', err);
+      }
+    }
+
+    function selectElement(section, key) {
+      appState.selectedElement = { section, key: String(key) };
+      document.getElementById('quickSelectElement').value = `${section}:${key}`;
+
+      // Highlight selected element on hardware chassis
+      document.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+      if (section === 'center') {
+        const cell = document.querySelector(`.touch-cell-overlay[data-key="${key}"]`);
+        if (cell) cell.classList.add('selected');
+      } else if (section === 'left' || section === 'right') {
+        document.getElementById(`${section}ScreenWrapper`)?.classList.add('selected');
+      } else if (section === 'knobs') {
+        document.getElementById(`knobCircle-${key}`)?.classList.add('selected');
+      } else if (section === 'buttons') {
+        document.getElementById(`physBtn-${key}`)?.classList.add('selected');
+      }
+
+      renderInspectorForm();
+    }
+
+    function getCurrentProfileConfigObj() {
+      const idx = appState.snapshot?.currentProfile || 0;
+      return appState.profilesData[idx]?.data || null;
+    }
+
+    function getElementConfigObj(profileObj, section, key, createIfMissing = false) {
+      if (!profileObj) return null;
+      if (section === 'center' || section === 'left' || section === 'right') {
+        if (!profileObj.touch) {
+          if (!createIfMissing) return null;
+          profileObj.touch = {};
+        }
+        if (!profileObj.touch[section]) {
+          if (!createIfMissing) return null;
+          profileObj.touch[section] = {};
+        }
+        if (!profileObj.touch[section][key]) {
+          if (!createIfMissing) return null;
+          profileObj.touch[section][key] = { states: { off: { color: '#000099', cmd: 'echo "{id} {state}"' } }, params: {} };
+        }
+        return profileObj.touch[section][key];
+      } else if (section === 'knobs') {
+        if (!profileObj.knobs) {
+          if (!createIfMissing) return null;
+          profileObj.knobs = {};
+        }
+        if (!profileObj.knobs[key]) {
+          if (!createIfMissing) return null;
+          profileObj.knobs[key] = { states: { on: { cmd: 'echo "{id} {state}"' } }, params: {} };
+        }
+        return profileObj.knobs[key];
+      } else if (section === 'buttons') {
+        if (!profileObj.buttons || !profileObj.buttons[key]) {
+          if (!createIfMissing) return null;
+          if (!profileObj.buttons) profileObj.buttons = {};
+          const kNum = Number(key);
+          if (kNum === 0) {
+            profileObj.buttons[key] = {
+              states: {
+                off: { filter: 'pressed', color: '#005500', brightness: 0 },
+                half: { filter: 'pressed', color: '#00aa00', brightness: 0.5, vibrate: 0x58 },
+                on: { filter: 'pressed', color: '#00ff00', brightness: 1 }
+              },
+              params: { group: 'brightness' }
+            };
+          } else {
+            profileObj.buttons[key] = {
+              states: {
+                off: { filter: 'pressed', color: '#000055', profile: kNum - 1 },
+                on: { filter: 'pressed', color: '#00ff00' }
+              },
+              params: { group: 'profiles' }
+            };
+          }
+        }
+        return profileObj.buttons[key];
+      }
+      return null;
+    }
+
+    function updateLiveSelectionSubtitle() {
+      const { section, key } = appState.selectedElement;
+      const liveField = appState.snapshot?.fields?.[section]?.[key];
+      const liveEl = document.getElementById('selectedElementLiveState');
+      if (liveField) {
+        liveEl.textContent = `Live State: "${liveField.currentState}" (states: ${liveField.availableStates.join(', ')}) • Group: "${liveField.group || 'none'}" • Value: ${liveField.value}`;
+      } else {
+        liveEl.textContent = 'Live State: Default / Unconfigured';
+      }
+    }
+
+    function renderInspectorForm() {
+      const { section, key } = appState.selectedElement;
+      const sectionLabels = {
+        center: `Touch Center Button #${key}`,
+        left: `Left Touch Strip #${key}`,
+        right: `Right Touch Strip #${key}`,
+        knobs: `Rotary Knob ${key}`,
+        buttons: `Physical RGB Button #${key}`
+      };
+      document.getElementById('selectedElementTitle').textContent = sectionLabels[section] || `${section} ${key}`;
+      updateLiveSelectionSubtitle();
+
+      const profileObj = getCurrentProfileConfigObj();
+      const formEl = document.getElementById('buttonEditorForm');
+      let defaultNotice = document.getElementById('defaultButtonsNotice');
+      if (!defaultNotice) {
+        defaultNotice = document.createElement('div');
+        defaultNotice.id = 'defaultButtonsNotice';
+        defaultNotice.className = 'issue-item info';
+        defaultNotice.style.marginBottom = '0.85rem';
+        formEl.parentNode.insertBefore(defaultNotice, formEl);
+      }
+
+      const elemObj = getElementConfigObj(profileObj, section, key, false);
+      if (!elemObj) {
+        formEl.style.display = 'none';
+        defaultNotice.style.display = 'block';
+        if (section === 'buttons') {
+          defaultNotice.innerHTML = `
+            <div><strong>ℹ️ Automatic Default Physical Button (#${key})</strong></div>
+            <div style="margin:0.35rem 0;color:var(--text-muted);">
+              This profile omits the <code>buttons:</code> section, so Loupedeck Commander automatically configures Button 0 for Brightness and Buttons 1..N for Profile Switching.
+            </div>
+            <button type="button" class="btn btn-sm btn-primary" id="customizeBtnNow">⚙️ Customize Button #${key} in Profile</button>
+          `;
+        } else {
+          defaultNotice.innerHTML = `
+            <div><strong>ℹ️ Unconfigured Element (${section} #${key})</strong></div>
+            <div style="margin:0.35rem 0;color:var(--text-muted);">
+              This element is not yet explicitly defined in the current profile YAML.
+            </div>
+            <button type="button" class="btn btn-sm btn-primary" id="customizeBtnNow">➕ Create Configuration for ${section} #${key}</button>
+          `;
+        }
+        document.getElementById('customizeBtnNow').onclick = () => {
+          getElementConfigObj(profileObj, section, key, true);
+          renderInspectorForm();
+        };
+        return;
+      }
+
+      defaultNotice.style.display = 'none';
+      formEl.style.display = 'block';
+
+      const params = elemObj.params || {};
+      const defaultInput = document.getElementById('btnParamDefault');
+      const typeSelect = document.getElementById('btnParamType');
+      const groupInput = document.getElementById('btnParamGroup');
+      const minPressedInput = document.getElementById('btnParamMinPressed');
+      const minPressedModeSelect = document.getElementById('btnParamMinPressedMode');
+      const textInput = document.getElementById('btnParamText');
+      const nodeIdInput = document.getElementById('btnParamNodeId');
+
+      defaultInput.value = params.default ?? elemObj.default ?? '';
+      typeSelect.value = params.type ?? elemObj.type ?? 'TOGGLE';
+      groupInput.value = params.group ?? elemObj.group ?? '';
+      minPressedInput.value = params.minPressed ?? elemObj.minPressed ?? '';
+      minPressedModeSelect.value = params.minPressedMode ?? 'immediate';
+      textInput.value = params.text ?? elemObj.text ?? '';
+      nodeIdInput.value = params.nodeid ?? elemObj.nodeid ?? '';
+
+      const bindParamChange = (inputEl, paramKey, isNumber = false) => {
+        inputEl.oninput = () => {
+          if (!elemObj.params) elemObj.params = {};
+          const raw = inputEl.value;
+          if (raw === '') {
+            delete elemObj.params[paramKey];
+          } else {
+            elemObj.params[paramKey] = isNumber ? Number(raw) : raw;
+          }
+          // Clean legacy root duplicate if present
+          if (paramKey in elemObj) delete elemObj[paramKey];
+        };
+      };
+
+      bindParamChange(defaultInput, 'default');
+      bindParamChange(typeSelect, 'type');
+      bindParamChange(groupInput, 'group');
+      bindParamChange(minPressedInput, 'minPressed', true);
+      bindParamChange(minPressedModeSelect, 'minPressedMode');
+      bindParamChange(textInput, 'text');
+      bindParamChange(nodeIdInput, 'nodeid');
+
+      // Render states cards
+      const container = document.getElementById('statesContainer');
+      container.innerHTML = '';
+      const states = elemObj.states || {};
+      const stateNames = Object.keys(states);
+
+      const iconOptionsHtml = [`<option value="">(None / Custom Path)</option>`]
+        .concat(appState.availableIcons.map(ic => `<option value="${ic}">${ic}</option>`))
+        .join('');
+
+      stateNames.forEach((sName) => {
+        const st = states[sName] || {};
+        const card = document.createElement('div');
+        card.className = 'state-card';
+        const colorVal = /^#[0-9a-fA-F]{6}$/.test(st.color || '') ? st.color : '#000099';
+        card.innerHTML = `
+          <div class="state-card-header">
+            <strong>State: <code>${sName}</code></strong>
+            <button type="button" class="btn btn-sm remove-state-btn" data-state="${sName}" ${stateNames.length <= 1 ? 'disabled' : ''}>🗑️ Remove</button>
+          </div>
+          <div class="form-grid">
+            <div class="field">
+              <label>Background Color</label>
+              <span class="hint">6-digit hex (#RRGGBB)</span>
+              <div class="color-input-group">
+                <input type="color" class="st-color-picker" value="${colorVal}">
+                <input type="text" class="st-color" value="${st.color || ''}" pattern="#[0-9a-fA-F]{6}" placeholder="#000099">
+              </div>
+              <div class="error-msg"><span aria-hidden="true">❌</span> Use #RRGGBB hex format</div>
+            </div>
+            <div class="field">
+              <label>Icon Image Path</label>
+              <span class="hint">Relative path (e.g. icons/home.png)</span>
+              <input type="text" class="st-image" value="${st.image || ''}" list="iconsDatalist" placeholder="icons/home.png">
+            </div>
+            <div class="field">
+              <label>Shell Command (cmd)</label>
+              <span class="hint">Supports {id}, {state}, {value}, etc.</span>
+              <input type="text" class="st-cmd" value="${(st.cmd || '').replace(/"/g, '&quot;')}" placeholder='echo "{id} {state}"'>
+            </div>
+            <div class="field">
+              <label>OPC UA Write Node (opcua)</label>
+              <span class="hint">NodeID to write on state trigger</span>
+              <input type="text" class="st-opcua" value="${st.opcua || ''}" pattern="ns=[0-9]+;[sibg]=.+" placeholder="ns=2;s=Node">
+              <div class="error-msg"><span aria-hidden="true">❌</span> Expected ns=&lt;num&gt;;s=&lt;id&gt;</div>
+            </div>
+            <div class="field">
+              <label>HTTP URL (http)</label>
+              <span class="hint">GET request URL on state trigger</span>
+              <input type="text" class="st-http" value="${st.http || ''}" placeholder="http://{hostname}/api">
+            </div>
+            <div class="field">
+              <label>Blink (boolean or NodeID)</label>
+              <span class="hint">true, false, or OPC UA NodeID</span>
+              <input type="text" class="st-blink" value="${st.blink !== undefined ? String(st.blink) : ''}" placeholder="false or ns=2;s=...">
+            </div>
+          </div>
+        `;
+
+        const colorPicker = card.querySelector('.st-color-picker');
+        const colorText = card.querySelector('.st-color');
+        colorPicker.addEventListener('input', () => {
+          colorText.value = colorPicker.value;
+          st.color = colorPicker.value;
+        });
+        colorText.addEventListener('input', () => {
+          st.color = colorText.value;
+          if (/^#[0-9a-fA-F]{6}$/.test(colorText.value)) {
+            colorPicker.value = colorText.value;
+          }
+        });
+
+        card.querySelector('.st-image').addEventListener('input', (e) => {
+          if (e.target.value.trim()) st.image = e.target.value.trim();
+          else delete st.image;
+        });
+        card.querySelector('.st-cmd').addEventListener('input', (e) => {
+          if (e.target.value.trim()) st.cmd = e.target.value;
+          else delete st.cmd;
+        });
+        card.querySelector('.st-opcua').addEventListener('input', (e) => {
+          if (e.target.value.trim()) st.opcua = e.target.value.trim();
+          else delete st.opcua;
+        });
+        card.querySelector('.st-http').addEventListener('input', (e) => {
+          if (e.target.value.trim()) st.http = e.target.value.trim();
+          else delete st.http;
+        });
+        card.querySelector('.st-blink').addEventListener('input', (e) => {
+          const v = e.target.value.trim();
+          if (v === '') delete st.blink;
+          else if (v === 'true') st.blink = true;
+          else if (v === 'false') st.blink = false;
+          else st.blink = v;
+        });
+
+        card.querySelector('.remove-state-btn').addEventListener('click', () => {
+          delete elemObj.states[sName];
+          renderInspectorForm();
+        });
+
+        container.appendChild(card);
+      });
+
+      // Ensure datalist of available icons exists
+      let dl = document.getElementById('iconsDatalist');
+      if (!dl) {
+        dl = document.createElement('datalist');
+        dl.id = 'iconsDatalist';
+        document.body.appendChild(dl);
+      }
+      dl.innerHTML = appState.availableIcons.map(ic => `<option value="${ic}">`).join('');
+    }
+
+    document.getElementById('addStateBtn').addEventListener('click', () => {
+      const stateName = prompt('Enter new state name (e.g. "on", "off", "two"):', 'new_state');
+      if (!stateName || !stateName.trim()) return;
+      const { section, key } = appState.selectedElement;
+      const profileObj = getCurrentProfileConfigObj();
+      const elemObj = getElementConfigObj(profileObj, section, key);
+      if (!elemObj.states) elemObj.states = {};
+      elemObj.states[stateName.trim()] = {
+        color: '#00ff00',
+        image: appState.availableIcons[0] || 'icons/home.png',
+        cmd: 'echo "{id} {state}"'
+      };
+      renderInspectorForm();
+    });
+
+    function renderProfileParamsForm() {
+      const profileObj = getCurrentProfileConfigObj();
+      if (!profileObj) return;
+      if (!profileObj.parameters) profileObj.parameters = {};
+      const p = profileObj.parameters;
+
+      const hostIn = document.getElementById('profParamHostname');
+      const epIn = document.getElementById('profParamEndpoint');
+      const tcIn = document.getElementById('profParamTextColor');
+      const tcPick = document.getElementById('profParamTextColorPicker');
+      const fontIn = document.getElementById('profParamFont');
+      const alignIn = document.getElementById('profParamTextAlign');
+      const baseIn = document.getElementById('profParamTextBaseline');
+
+      hostIn.value = p.hostname || '127.0.0.1';
+      epIn.value = p.endpointurl || 'opc.tcp://{hostname}:4840';
+      tcIn.value = p.textColor || '#ffffff';
+      if (/^#[0-9a-fA-F]{6}$/.test(tcIn.value)) tcPick.value = tcIn.value;
+      fontIn.value = p.font || '14px Arial';
+      alignIn.value = p.textAlign || 'center';
+      baseIn.value = p.textBaseline || p.textBaseLine || 'top';
+
+      hostIn.oninput = () => { p.hostname = hostIn.value; };
+      epIn.oninput = () => { p.endpointurl = epIn.value; };
+      tcPick.oninput = () => { tcIn.value = tcPick.value; p.textColor = tcPick.value; };
+      tcIn.oninput = () => {
+        p.textColor = tcIn.value;
+        if (/^#[0-9a-fA-F]{6}$/.test(tcIn.value)) tcPick.value = tcIn.value;
+      };
+      fontIn.oninput = () => { p.font = fontIn.value; };
+      alignIn.onchange = () => { p.textAlign = alignIn.value; };
+      baseIn.onchange = () => {
+        p.textBaseline = baseIn.value;
+        delete p.textBaseLine;
+      };
+    }
+
+    function updateSnapshotUI(snapshot) {
+      if (!snapshot) return;
+      const prevProfile = appState.snapshot?.currentProfile;
+      appState.snapshot = snapshot;
+
+      // Update screens
+      const screens = snapshot.device?.screens || {};
+      if (screens.center) document.getElementById('screenCenterImg').src = screens.center;
+      if (screens.left) document.getElementById('screenLeftImg').src = screens.left;
+      if (screens.right) document.getElementById('screenRightImg').src = screens.right;
+
+      // Brightness
+      const b = snapshot.brightness ?? 1;
+      document.getElementById('brightnessLabel').textContent = `${Math.round(b * 100)}%`;
+      document.getElementById('displayBezel').style.filter = `brightness(${0.25 + b * 0.75})`;
+
+      // Physical button colors
+      const btnColors = snapshot.device?.buttonColors || {};
+      for (let i = 0; i < 8; i++) {
+        const el = document.getElementById(`physBtn-${i}`);
+        if (el) {
+          el.style.backgroundColor = btnColors[i] || '#1f242c';
+        }
+      }
+
+      // Center cell state badges
+      const centerSnap = snapshot.fields?.center || {};
+      for (let i = 0; i < 12; i++) {
+        const badge = document.getElementById(`cellBadge-${i}`);
+        if (badge && centerSnap[i]) {
+          badge.textContent = `#${i} ${centerSnap[i].currentState}`;
+        }
+      }
+
+      // Knobs values & blink state
+      const knobsSnap = snapshot.fields?.knobs || {};
+      for (const kid of [...LEFT_KNOBS, ...RIGHT_KNOBS]) {
+        const kinfo = knobsSnap[kid];
+        const valEl = document.getElementById(`knobVal-${kid}`);
+        const dialEl = document.getElementById(`knobCircle-${kid}`);
+        if (kinfo && valEl) {
+          valEl.textContent = `${kinfo.currentState} (${kinfo.value})`;
+        }
+        if (dialEl) {
+          dialEl.classList.toggle('blinking', Boolean(kinfo?.blink));
+        }
+      }
+
+      // Profile selector
+      const profSelect = document.getElementById('profileSelect');
+      if (snapshot.profiles && profSelect.options.length !== snapshot.profiles.length) {
+        profSelect.innerHTML = '';
+        snapshot.profiles.forEach(p => {
+          profSelect.appendChild(new Option(`${p.index}: ${p.name}`, String(p.index)));
+        });
+      }
+      profSelect.value = String(snapshot.currentProfile || 0);
+
+      updateLiveSelectionSubtitle();
+      renderOpcuaSimulator(snapshot.opcua);
+      if (prevProfile !== undefined && prevProfile !== snapshot.currentProfile) {
+        renderInspectorForm();
+        renderProfileParamsForm();
+      }
+    }
+
+    function renderValidationReport(validation) {
+      if (!validation) return;
+      appState.validation = validation;
+      const { errorCount, warningCount, infoCount } = validation.summary;
+      document.getElementById('issueCountLabel').textContent = String(errorCount + warningCount);
+
+      const badge = document.getElementById('validationBadge');
+      if (errorCount > 0) {
+        badge.className = 'badge err';
+        badge.textContent = `❌ ${errorCount} Error(s), ${warningCount} Warning(s)`;
+      } else if (warningCount > 0) {
+        badge.className = 'badge warn';
+        badge.textContent = `⚠️ Valid (${warningCount} Warning(s))`;
+      } else {
+        badge.className = 'badge ok';
+        badge.textContent = '✅ Configuration Valid';
+      }
+
+      document.getElementById('validatorSummaryText').innerHTML = `
+        <strong>${errorCount}</strong> errors, <strong>${warningCount}</strong> warnings, <strong>${infoCount}</strong> info notes across <strong>${validation.summary.profileCount}</strong> profile(s).
+      `;
+
+      const list = document.getElementById('validationIssuesList');
+      list.innerHTML = '';
+      if (validation.issues.length === 0) {
+        list.innerHTML = `<div class="issue-item info">🎉 All configuration files and profiles passed validation with zero issues!</div>`;
+        return;
+      }
+
+      for (const issue of validation.issues) {
+        const item = document.createElement('div');
+        item.className = `issue-item ${issue.severity}`;
+        const icon = issue.severity === 'error' ? '❌' : (issue.severity === 'warning' ? '⚠️' : 'ℹ️');
+        item.innerHTML = `
+          <div class="issue-meta">
+            <span>${icon} ${issue.severity.toUpperCase()}</span>
+            <span>&bull;</span>
+            <span>${issue.file}</span>
+            ${issue.path ? `<span>&bull; <code>${issue.path}</code></span>` : ''}
+          </div>
+          <div>${issue.message}</div>
+          ${issue.suggestion ? `<div class="issue-suggestion">💡 Suggestion: ${issue.suggestion}</div>` : ''}
+        `;
+        list.appendChild(item);
+      }
+    }
+
+    function renderOpcuaSimulator(opcuaSnap) {
+      const container = document.getElementById('opcuaNodesContainer');
+      if (!opcuaSnap || !opcuaSnap.nodes || opcuaSnap.nodes.length === 0) {
+        container.innerHTML = `<div class="issue-item info">No OPC UA monitored nodes configured in the active profile.</div>`;
+        return;
+      }
+      container.innerHTML = '';
+      for (const node of opcuaSnap.nodes) {
+        const card = document.createElement('div');
+        card.className = 'issue-item info';
+        const targets = node.mappings.map(m => `${m.buttonName} (${m.attribute})`).join(', ');
+        card.innerHTML = `
+          <div class="issue-meta">
+            <strong><code>${node.nodeId}</code></strong>
+            <span>&rarr; ${targets}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:0.45rem;margin-top:0.4rem;flex-wrap:wrap;">
+            <input type="text" class="opcua-sim-input" value="${node.value ?? ''}" placeholder="Enter state name or boolean (e.g. one, two, true)" style="flex:1;padding:0.3rem 0.5rem;border-radius:4px;border:1px solid var(--border);background:var(--bg-panel);color:var(--text-main);">
+            <button type="button" class="btn btn-sm btn-primary opcua-push-btn">Push Value</button>
+            <button type="button" class="btn btn-sm opcua-bool-btn" data-val="true">Set true</button>
+            <button type="button" class="btn btn-sm opcua-bool-btn" data-val="false">Set false</button>
+          </div>
+        `;
+        const inputEl = card.querySelector('.opcua-sim-input');
+        inputEl.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            simulateOpcuaNode(node.nodeId, inputEl.value);
+          }
+        });
+        card.querySelector('.opcua-push-btn').addEventListener('click', () => {
+          simulateOpcuaNode(node.nodeId, inputEl.value);
+        });
+        card.querySelectorAll('.opcua-bool-btn').forEach(b => {
+          b.addEventListener('click', () => {
+            const val = b.dataset.val === 'true';
+            inputEl.value = String(val);
+            simulateOpcuaNode(node.nodeId, val);
+          });
+        });
+        container.appendChild(card);
+      }
+    }
+
+    async function simulateOpcuaNode(nodeId, value) {
+      const res = await fetch('/api/opcua/simulate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nodeId, value })
+      });
+      const data = await res.json();
+      if (data.snapshot) updateSnapshotUI(data.snapshot);
+    }
+
+    function appendActivityLog(entry) {
+      const log = document.getElementById('activityLog');
+      if (log.children.length === 1 && !log.children[0].classList.contains('log-entry')) {
+        log.innerHTML = '';
+      }
+      const row = document.createElement('div');
+      row.className = `log-entry ${entry.status === 'error' ? 'error' : ''}`;
+      const time = new Date(entry.timestamp || Date.now()).toLocaleTimeString();
+      row.innerHTML = `
+        <div>
+          <strong>[${entry.interface.toUpperCase()}]</strong>
+          <span>${entry.buttonId ? `(${entry.buttonId})` : ''}</span>
+          <code>${entry.message || entry.formatted}</code>
+        </div>
+        <div style="color:var(--text-muted);white-space:nowrap;">${time}</div>
+      `;
+      log.prepend(row);
+    }
+
+    // Tab switching
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn').forEach(b => {
+          b.classList.remove('active');
+          b.setAttribute('aria-selected', 'false');
+        });
+        document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+        btn.classList.add('active');
+        btn.setAttribute('aria-selected', 'true');
+        document.getElementById(btn.dataset.tab).classList.add('active');
+      });
+    });
+
+    // Topbar actions
+    document.getElementById('profileSelect').addEventListener('change', async (e) => {
+      await sendHardwareEvent({ type: 'profile', profileId: Number(e.target.value) });
+      renderInspectorForm();
+      renderProfileParamsForm();
+    });
+
+    document.getElementById('toggleModeBtn').addEventListener('click', async () => {
+      const nextDryRun = !appState.dryRun;
+      const res = await fetch('/api/event', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'mode', dryRun: nextDryRun })
+      });
+      const data = await res.json();
+      appState.dryRun = data.dryRun;
+      updateModeBadge();
+    });
+
+    function updateModeBadge() {
+      const modeBadge = document.getElementById('modeBadge');
+      const toggleBtn = document.getElementById('toggleModeBtn');
+      if (appState.dryRun) {
+        modeBadge.className = 'badge ok';
+        modeBadge.textContent = 'Simulated Interfaces (Safe)';
+        toggleBtn.textContent = '🔄 Switch to Live Mode';
+      } else {
+        modeBadge.className = 'badge warn';
+        modeBadge.textContent = '⚡ Live Interfaces Active';
+        toggleBtn.textContent = '🛡️ Switch to Simulated Mode';
+      }
+    }
+
+    document.getElementById('reRunValidateBtn').addEventListener('click', async () => {
+      const idx = appState.snapshot?.currentProfile || 0;
+      const res = await fetch('/api/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          profileIndex: idx,
+          profileData: getCurrentProfileConfigObj()
+        })
+      });
+      const data = await res.json();
+      renderValidationReport(data.validation);
+    });
+
+    document.getElementById('autoFixBtn').addEventListener('click', async () => {
+      const idx = appState.snapshot?.currentProfile || 0;
+      const res = await fetch('/api/config/autofix', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          profileIndex: idx,
+          profileData: getCurrentProfileConfigObj()
+        })
+      });
+      const data = await res.json();
+      if (data.fixedProfileData) {
+        appState.profilesData[idx].data = data.fixedProfileData;
+        renderInspectorForm();
+        renderProfileParamsForm();
+      }
+      if (data.validation) {
+        renderValidationReport(data.validation);
+      }
+      if (data.fixesApplied && data.fixesApplied.length > 0) {
+        appendActivityLog({
+          interface: 'autofix',
+          status: 'ok',
+          message: `Applied ${data.fixesApplied.length} fix(es): ${data.fixesApplied.join('; ')}`
+        });
+      }
+    });
+
+    document.getElementById('saveDiskBtn').addEventListener('click', async () => {
+      const idx = appState.snapshot?.currentProfile || 0;
+      const res = await fetch('/api/config/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          profileIndex: idx,
+          profileData: getCurrentProfileConfigObj()
+        })
+      });
+      const data = await res.json();
+      if (data.snapshot) updateSnapshotUI(data.snapshot);
+      if (data.validation) renderValidationReport(data.validation);
+      appendActivityLog({
+        interface: 'config',
+        status: data.ok ? 'ok' : 'error',
+        message: data.message || 'Saved configuration and reloaded profile'
+      });
+    });
+
+    document.getElementById('exportYamlBtn').addEventListener('click', async () => {
+      const idx = appState.snapshot?.currentProfile || 0;
+      const res = await fetch('/api/config/yaml', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          profileIndex: idx,
+          profileData: getCurrentProfileConfigObj()
+        })
+      });
+      const data = await res.json();
+      document.getElementById('yamlModalTextarea').value = data.yaml || '';
+      yamlModal.showModal();
+    });
+
+    document.getElementById('copyYamlBtn').addEventListener('click', () => {
+      const ta = document.getElementById('yamlModalTextarea');
+      navigator.clipboard.writeText(ta.value);
+    });
+
+    document.getElementById('applyRawYamlBtn').addEventListener('click', async () => {
+      const idx = appState.snapshot?.currentProfile || 0;
+      const rawYaml = document.getElementById('yamlModalTextarea').value;
+      const res = await fetch('/api/config/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          profileIndex: idx,
+          rawYaml
+        })
+      });
+      const data = await res.json();
+      if (data.ok) {
+        if (data.profileData) appState.profilesData[idx].data = data.profileData;
+        if (data.snapshot) updateSnapshotUI(data.snapshot);
+        if (data.validation) renderValidationReport(data.validation);
+        renderInspectorForm();
+        renderProfileParamsForm();
+        yamlModal.close();
+      } else {
+        alert(data.message || 'Failed to parse YAML');
+      }
+    });
+
+    document.getElementById('clearLogBtn').addEventListener('click', () => {
+      document.getElementById('activityLog').innerHTML = '';
+    });
+
+    // Initial load & SSE subscription
+    async function initApp() {
+      buildHardwareDOM();
+      const res = await fetch('/api/state');
+      const data = await res.json();
+      appState.profilesData = data.profilesData || [];
+      appState.availableIcons = data.availableIcons || [];
+      appState.dryRun = data.dryRun;
+      updateModeBadge();
+      updateSnapshotUI(data.snapshot);
+      renderValidationReport(data.validation);
+      selectElement('center', '0');
+      renderProfileParamsForm();
+
+      // Connect SSE for real-time screen frames, haptics, and interface logs
+      const es = new EventSource('/api/events');
+      es.addEventListener('screen', (e) => {
+        const msg = JSON.parse(e.data);
+        if (msg.screen === 'center') document.getElementById('screenCenterImg').src = msg.dataUrl;
+        if (msg.screen === 'left') document.getElementById('screenLeftImg').src = msg.dataUrl;
+        if (msg.screen === 'right') document.getElementById('screenRightImg').src = msg.dataUrl;
+      });
+      es.addEventListener('device', (e) => {
+        const msg = JSON.parse(e.data);
+        if (msg.type === 'vibrate') {
+          const hap = document.getElementById('hapticIndicator');
+          hap.textContent = `📳 Haptic: 0x${Number(msg.pattern).toString(16).toUpperCase()}`;
+          hap.classList.add('active');
+          setTimeout(() => hap.classList.remove('active'), 450);
+        } else if (msg.type === 'brightness') {
+          const b = msg.brightness ?? 1;
+          document.getElementById('brightnessLabel').textContent = `${Math.round(b * 100)}%`;
+          document.getElementById('displayBezel').style.filter = `brightness(${0.25 + b * 0.75})`;
+        } else if (msg.type === 'buttonColor') {
+          const el = document.getElementById(`physBtn-${msg.id}`);
+          if (el) el.style.backgroundColor = msg.color;
+        }
+      });
+      es.addEventListener('snapshot', (e) => {
+        const snap = JSON.parse(e.data);
+        updateSnapshotUI(snap);
+      });
+      es.addEventListener('activity', (e) => {
+        const entry = JSON.parse(e.data);
+        appendActivityLog(entry);
+      });
+    }
+
+    initApp();
+  </script>
+</body>
+</html>

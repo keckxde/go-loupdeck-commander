@@ -1,0 +1,323 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 22,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "default",
+      "displayName": "Default (Release)",
+      "description": "Default Release build using Unix Makefiles in build-RELEASE",
+      "generator": "Unix Makefiles",
+      "binaryDir": "${sourceDir}/build-RELEASE",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "GO_BUILD": "ON",
+        "ENABLE_TESTING": "ON",
+        "ENABLE_RACE_DETECTOR": "OFF",
+        "GENERATE_INSTALLER": "ON",
+        "SYNC_ROOT_BINARY": "ON",
+        "CPACK_DEBIAN_PACKAGE_DEPENDS": "usbutils",
+        "CPACK_PACKAGE_DESCRIPTION_SUMMARY": "Loupedeck Commander (Go) — Hardware Daemon, Emulator & Configuration Tool"
+      }
+    },
+    {
+      "name": "release",
+      "inherits": "default",
+      "displayName": "Release (Unix Makefiles)",
+      "description": "Optimized Release build with stripped symbols and git-tag version injected"
+    },
+    {
+      "name": "debug",
+      "inherits": "default",
+      "displayName": "Debug (Unix Makefiles)",
+      "description": "Debug build preserving symbols and disabling optimizations in build-DEBUG",
+      "binaryDir": "${sourceDir}/build-DEBUG",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "SYNC_ROOT_BINARY": "OFF"
+      }
+    },
+    {
+      "name": "race",
+      "inherits": "debug",
+      "displayName": "Race Detector (Unix Makefiles)",
+      "description": "Debug configuration with Go -race detector enabled for CTest",
+      "binaryDir": "${sourceDir}/build-RACE",
+      "cacheVariables": {
+        "ENABLE_RACE_DETECTOR": "ON"
+      }
+    },
+    {
+      "name": "linux",
+      "inherits": "release",
+      "displayName": "Linux amd64 Release",
+      "description": "Explicit Linux amd64 Release build",
+      "cacheVariables": {
+        "GO_TARGET_OS": "linux",
+        "GO_TARGET_ARCH": "amd64"
+      }
+    },
+    {
+      "name": "windows",
+      "inherits": "release",
+      "displayName": "Windows amd64 Cross-Release",
+      "description": "Cross-compiled Windows amd64 (.exe) Release build in build-WINDOWS",
+      "binaryDir": "${sourceDir}/build-WINDOWS",
+      "cacheVariables": {
+        "GO_TARGET_OS": "windows",
+        "GO_TARGET_ARCH": "amd64",
+        "ENABLE_TESTING": "OFF"
+      }
+    },
+    {
+      "name": "ninja",
+      "inherits": "release",
+      "displayName": "Release (Ninja)",
+      "description": "Release build using Ninja generator in build-NINJA",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build-NINJA"
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "default",
+      "displayName": "Build Default (Release)",
+      "configurePreset": "default"
+    },
+    {
+      "name": "release",
+      "displayName": "Build Release",
+      "configurePreset": "release"
+    },
+    {
+      "name": "debug",
+      "displayName": "Build Debug",
+      "configurePreset": "debug"
+    },
+    {
+      "name": "race",
+      "displayName": "Build Race",
+      "configurePreset": "race"
+    },
+    {
+      "name": "linux",
+      "displayName": "Build Linux amd64",
+      "configurePreset": "linux"
+    },
+    {
+      "name": "windows",
+      "displayName": "Build Windows amd64",
+      "configurePreset": "windows"
+    },
+    {
+      "name": "ninja",
+      "displayName": "Build Release (Ninja)",
+      "configurePreset": "ninja"
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "default",
+      "displayName": "Test Default",
+      "configurePreset": "default",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "release",
+      "displayName": "Test Release",
+      "configurePreset": "release",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "debug",
+      "displayName": "Test Debug",
+      "configurePreset": "debug",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "race",
+      "displayName": "Test with Race Detector",
+      "configurePreset": "race",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "linux",
+      "displayName": "Test Linux amd64",
+      "configurePreset": "linux",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "ninja",
+      "displayName": "Test Release (Ninja)",
+      "configurePreset": "ninja",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ],
+  "packagePresets": [
+    {
+      "name": "default",
+      "displayName": "Package Default (DEB + TGZ)",
+      "description": "Create Debian (.deb) and Tarball (.tar.gz) packages in build-RELEASE",
+      "configurePreset": "default",
+      "generators": [
+        "DEB",
+        "TGZ"
+      ]
+    },
+    {
+      "name": "release",
+      "displayName": "Package Release (DEB + TGZ)",
+      "description": "Create Release Debian (.deb) and Tarball (.tar.gz) packages",
+      "configurePreset": "release",
+      "generators": [
+        "DEB",
+        "TGZ"
+      ]
+    },
+    {
+      "name": "deb",
+      "displayName": "Package Debian (.deb)",
+      "description": "Create only the Debian (.deb) installer package",
+      "configurePreset": "release",
+      "generators": [
+        "DEB"
+      ]
+    },
+    {
+      "name": "tgz",
+      "displayName": "Package Tarball (.tar.gz)",
+      "description": "Create only the .tar.gz archive package",
+      "configurePreset": "release",
+      "generators": [
+        "TGZ"
+      ]
+    },
+    {
+      "name": "zip",
+      "displayName": "Package ZIP (.zip)",
+      "description": "Create a .zip archive package for Linux Release",
+      "configurePreset": "release",
+      "generators": [
+        "ZIP"
+      ]
+    },
+    {
+      "name": "debug",
+      "displayName": "Package Debug (DEB + TGZ)",
+      "description": "Create Debug Debian (.deb) and Tarball (.tar.gz) packages in build-DEBUG",
+      "configurePreset": "debug",
+      "generators": [
+        "DEB",
+        "TGZ"
+      ]
+    },
+    {
+      "name": "linux",
+      "displayName": "Package Linux amd64 (DEB + TGZ)",
+      "description": "Create Linux amd64 Debian (.deb) and Tarball (.tar.gz) packages",
+      "configurePreset": "linux",
+      "generators": [
+        "DEB",
+        "TGZ"
+      ]
+    },
+    {
+      "name": "windows",
+      "displayName": "Package Windows amd64 (.zip)",
+      "description": "Create Windows amd64 (.zip) package in build-WINDOWS",
+      "configurePreset": "windows",
+      "generators": [
+        "ZIP"
+      ]
+    },
+    {
+      "name": "ninja",
+      "displayName": "Package Ninja Release (DEB + TGZ)",
+      "description": "Create Debian (.deb) and Tarball (.tar.gz) packages from build-NINJA",
+      "configurePreset": "ninja",
+      "generators": [
+        "DEB",
+        "TGZ"
+      ]
+    }
+  ],
+  "workflowPresets": [
+    {
+      "name": "default",
+      "displayName": "Default Workflow (Configure + Build + Test + CPack)",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "default"
+        },
+        {
+          "type": "build",
+          "name": "default"
+        },
+        {
+          "type": "test",
+          "name": "default"
+        },
+        {
+          "type": "package",
+          "name": "default"
+        }
+      ]
+    },
+    {
+      "name": "release",
+      "displayName": "Release Workflow (Configure + Build + Test + CPack)",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "release"
+        },
+        {
+          "type": "build",
+          "name": "release"
+        },
+        {
+          "type": "test",
+          "name": "release"
+        },
+        {
+          "type": "package",
+          "name": "release"
+        }
+      ]
+    },
+    {
+      "name": "windows",
+      "displayName": "Windows Cross-Build Workflow (Configure + Build + CPack ZIP)",
+      "steps": [
+        {
+          "type": "configure",
+          "name": "windows"
+        },
+        {
+          "type": "build",
+          "name": "windows"
+        },
+        {
+          "type": "package",
+          "name": "windows"
+        }
+      ]
+    }
+  ]
+}

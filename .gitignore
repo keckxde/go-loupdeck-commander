@@ -1,0 +1,12 @@
+# CMake build directories
+build/
+build-*/
+
+# Compiled binaries
+/loupedeck-commander
+/loupedeck-commander.exe
+*.exe
+*.deb
+*.tar.gz
+*.zip
+

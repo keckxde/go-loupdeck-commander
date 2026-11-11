@@ -1,0 +1,45 @@
+# github.com/creack/goselect v0.1.2
+## explicit; go 1.13
+github.com/creack/goselect
+# github.com/gopcua/opcua v0.6.1
+## explicit; go 1.22.0
+github.com/gopcua/opcua
+github.com/gopcua/opcua/debug
+github.com/gopcua/opcua/errors
+github.com/gopcua/opcua/id
+github.com/gopcua/opcua/stats
+github.com/gopcua/opcua/ua
+github.com/gopcua/opcua/uacp
+github.com/gopcua/opcua/uapolicy
+github.com/gopcua/opcua/uasc
+# go.bug.st/serial v1.6.2
+## explicit; go 1.17
+go.bug.st/serial
+go.bug.st/serial/enumerator
+go.bug.st/serial/unixutils
+# golang.org/x/image v0.25.0
+## explicit; go 1.23.0
+golang.org/x/image/draw
+golang.org/x/image/font
+golang.org/x/image/font/gofont/gobold
+golang.org/x/image/font/gofont/goregular
+golang.org/x/image/font/opentype
+golang.org/x/image/font/sfnt
+golang.org/x/image/math/f64
+golang.org/x/image/math/fixed
+golang.org/x/image/vector
+# golang.org/x/sys v0.8.0
+## explicit; go 1.17
+golang.org/x/sys/internal/unsafeheader
+golang.org/x/sys/unix
+golang.org/x/sys/windows
+# golang.org/x/text v0.23.0
+## explicit; go 1.23.0
+golang.org/x/text/encoding
+golang.org/x/text/encoding/charmap
+golang.org/x/text/encoding/internal
+golang.org/x/text/encoding/internal/identifier
+golang.org/x/text/transform
+# gopkg.in/yaml.v3 v3.0.1
+## explicit
+gopkg.in/yaml.v3
