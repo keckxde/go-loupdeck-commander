@@ -247,13 +247,14 @@ func NormalizeLayoutConfig(rawConfig map[string]any) LayoutConfig {
 
 // ApplicationConfig holds the top-level application configuration and its loaded profiles.
 type ApplicationConfig struct {
-	Application string         `json:"application"`
-	Device      string         `json:"device"`
-	Layout      LayoutConfig   `json:"layout"`
-	Profiles    []*Profile     `json:"profiles"`
-	Parameters  map[string]any `json:"parameters"`
-	Initialized bool           `json:"initialized"`
-	BaseDir     string         `json:"-"`
+	Application string             `json:"application"`
+	Device      string             `json:"device"`
+	Layout      LayoutConfig       `json:"layout"`
+	Profiles    []*Profile         `json:"profiles"`
+	Parameters  map[string]any     `json:"parameters"`
+	Initialized bool               `json:"initialized"`
+	BaseDir     string             `json:"-"`
+	Schema      *AppConfigDocument `json:"-"`
 }
 
 // NewApplicationConfig creates a default ApplicationConfig.
@@ -272,51 +273,38 @@ func NewApplicationConfig() *ApplicationConfig {
 	}
 }
 
-// LoadFromFile loads the application configuration and all its profiles from disk.
+// LoadFromFile loads and validates the typed application configuration and all its profiles from disk.
 func (a *ApplicationConfig) LoadFromFile(fileName string) bool {
 	fmt.Printf("ApplicationConfig: Loading Config File %s\n", fileName)
 	targetFile := fileName
 	if a.BaseDir != "" && !filepath.IsAbs(fileName) {
 		targetFile = filepath.Join(a.BaseDir, fileName)
 	}
-	cfg := ReadConfigFile(targetFile)
-	if cfg == nil {
-		fmt.Printf("ApplicationConfig: Could not read/parse Config File %s - breaking here\n", fileName)
+	doc, err := ParseTypedAppConfigFile(targetFile)
+	if err != nil {
+		fmt.Printf("ApplicationConfig: Invalid Config File %s (%v) - breaking here\n", fileName, err)
 		return false
 	}
-	if a.BaseDir == "" && filepath.IsAbs(targetFile) {
-		dir := filepath.Dir(targetFile)
-		if filepath.Base(dir) == "config" {
-			a.BaseDir = filepath.Dir(dir)
-		} else {
-			a.BaseDir = dir
-		}
-	}
-	appStr := ToString(cfg["application"])
-	if appStr == "" {
-		fmt.Printf("ApplicationConfig: Config File %s does not contain an application attribute  - breaking here\n", fileName)
-		return false
-	}
-	rawProfiles, hasProfiles := cfg["profiles"].([]any)
-	if !hasProfiles {
-		fmt.Printf("ApplicationConfig: Config File %s does not contain a profiles attribute  - breaking here\n", fileName)
-		return false
-	}
+	a.BaseDir = resolveBaseDirFromConfigPath(targetFile, a.BaseDir)
+	return a.LoadFromTypedDoc(doc)
+}
 
-	a.Application = appStr
-	a.Layout = NormalizeLayoutConfig(cfg)
+// LoadFromTypedDoc populates ApplicationConfig from a validated AppConfigDocument.
+func (a *ApplicationConfig) LoadFromTypedDoc(doc *AppConfigDocument) bool {
+	if err := doc.Validate(); err != nil {
+		fmt.Printf("ApplicationConfig: Typed schema validation failed: %v\n", err)
+		return false
+	}
+	a.Schema = doc
+	a.Application = doc.Application
+	a.Layout = doc.NormalizeLayout()
 	a.Device = a.Layout.Device
-	rawParams, _ := cfg["parameters"].(map[string]any)
-	a.Parameters = NewParametersConfig(rawParams)
-	a.Profiles = []*Profile{}
+	a.Parameters = NewParametersConfig(doc.Parameters)
+	a.Profiles = make([]*Profile, 0, len(doc.Profiles))
 
-	for i, item := range rawProfiles {
-		entryMap, ok := item.(map[string]any)
-		if !ok {
-			return false
-		}
-		prof := NewProfile(entryMap, len(rawProfiles), i, &a.Layout, a.BaseDir)
-		prof.SetParams(rawParams)
+	for i, ref := range doc.Profiles {
+		prof := NewProfileFromRef(ref, len(doc.Profiles), i, &a.Layout, a.BaseDir)
+		prof.SetParams(doc.Parameters)
 		if prof.Loaded {
 			a.Profiles = append(a.Profiles, prof)
 		} else {
@@ -518,30 +506,31 @@ func NewDefaultConfig(data map[string]any) map[string]any {
 
 // Profile represents a single loaded profile configuration.
 type Profile struct {
-	Name        string         `json:"name"`
-	Profile     string         `json:"profile"`
-	Description string         `json:"description"`
-	Device      string         `json:"device"`
-	Layout      LayoutConfig   `json:"layout"`
-	Touch       TouchConfig    `json:"touch"`
-	Knobs       map[string]any `json:"knobs"`
-	Buttons     map[string]any `json:"buttons"`
-	Parameters  map[string]any `json:"parameters"`
-	Default     map[string]any `json:"default"`
-	File        string         `json:"-"`
-	BaseDir     string         `json:"-"`
-	Loaded      bool           `json:"loaded"`
+	Name        string           `json:"name"`
+	Profile     string           `json:"profile"`
+	Description string           `json:"description"`
+	Device      string           `json:"device"`
+	Layout      LayoutConfig     `json:"layout"`
+	Touch       TouchConfig      `json:"touch"`
+	Knobs       map[string]any   `json:"knobs"`
+	Buttons     map[string]any   `json:"buttons"`
+	Parameters  map[string]any   `json:"parameters"`
+	Default     map[string]any   `json:"default"`
+	File        string           `json:"-"`
+	BaseDir     string           `json:"-"`
+	Loaded      bool             `json:"loaded"`
+	Schema      *ProfileDocument `json:"-"`
 
 	profileCount int
 	index        int
 	appLayout    *LayoutConfig
 }
 
-// NewProfile creates and loads a Profile from disk.
-func NewProfile(data map[string]any, profileCount int, index int, appLayout *LayoutConfig, baseDir string) *Profile {
+// NewProfileFromRef creates and loads a Profile from a typed ProfileRefEntry.
+func NewProfileFromRef(ref ProfileRefEntry, profileCount int, index int, appLayout *LayoutConfig, baseDir string) *Profile {
 	p := &Profile{
-		Name:         ToString(data["name"]),
-		File:         ToString(data["file"]),
+		Name:         ref.Name,
+		File:         ref.File,
 		BaseDir:      baseDir,
 		profileCount: profileCount,
 		index:        index,
@@ -556,7 +545,15 @@ func NewProfile(data map[string]any, profileCount int, index int, appLayout *Lay
 	return p
 }
 
-// LoadFromFile loads the profile YAML/JSON file.
+// NewProfile creates and loads a Profile from disk using a raw map entry.
+func NewProfile(data map[string]any, profileCount int, index int, appLayout *LayoutConfig, baseDir string) *Profile {
+	return NewProfileFromRef(ProfileRefEntry{
+		Name: ToString(data["name"]),
+		File: ToString(data["file"]),
+	}, profileCount, index, appLayout, baseDir)
+}
+
+// LoadFromFile loads and validates the typed profile YAML/JSON file.
 func (p *Profile) LoadFromFile(fileName string) bool {
 	fmt.Printf("ProfileConfig: Loading Profile  File %s, Index %d\n", fileName, p.index)
 	targetPath := fileName
@@ -566,67 +563,44 @@ func (p *Profile) LoadFromFile(fileName string) bool {
 			targetPath = cand
 		}
 	}
-	cfg := ReadConfigFile(targetPath)
-	if cfg == nil {
-		fmt.Printf("ProfileConfig: Cannot parse/load Profile File %s\n", fileName)
+	doc, err := ParseTypedProfileFile(targetPath)
+	if err != nil {
+		fmt.Printf("ProfileConfig: Invalid Profile File %s (%v)\n", fileName, err)
 		return false
 	}
-	if ToString(cfg["profile"]) == "" {
-		fmt.Printf("ProfileConfig: File %s is missing a profile attribute\n", fileName)
-		return false
-	}
-	if _, ok := cfg["touch"].(map[string]any); !ok {
-		fmt.Printf("ProfileConfig: File %s is missing a touch attribute\n", fileName)
-		return false
-	}
-	if _, ok := cfg["parameters"].(map[string]any); !ok {
-		fmt.Printf("ProfileConfig: File %s is missing a parameters attribute\n", fileName)
-		return false
-	}
-	if _, ok := cfg["buttons"].(map[string]any); !ok {
+	if len(doc.Buttons) == 0 {
 		fmt.Printf("ProfileConfig: File %s is missing a buttons attribute - will be used to switch profiles by default\n", fileName)
 	}
+	return p.LoadFromTypedDoc(doc)
+}
 
-	p.Profile = ToString(cfg["profile"])
-	p.Description = ToString(cfg["description"])
+// LoadFromTypedDoc populates a Profile from a validated ProfileDocument.
+func (p *Profile) LoadFromTypedDoc(doc *ProfileDocument) bool {
+	if err := doc.Validate(); err != nil {
+		fmt.Printf("ProfileConfig: Typed schema validation failed: %v\n", err)
+		return false
+	}
+	p.Schema = doc
+	p.Profile = doc.Profile
+	p.Description = doc.Description
 
 	baseLayout := NormalizeLayoutConfig(nil)
 	if p.appLayout != nil {
 		baseLayout = *p.appLayout
 	}
-
-	_, hasDev := cfg["device"]
-	_, hasPrim := cfg["primaryDevice"]
-	_, hasLay := cfg["layout"]
-	_, hasCols := cfg["columns"]
-	_, hasRows := cfg["rows"]
-	if hasDev || hasPrim || hasLay || hasCols || hasRows {
-		rawLay, _ := cfg["layout"].(map[string]any)
-		merged := map[string]any{
-			"device":       firstNonNil(cfg["device"], cfg["primaryDevice"], baseLayout.Device),
-			"columns":      firstNonNil(mapVal(rawLay, "columns"), cfg["columns"], baseLayout.Columns),
-			"rows":         firstNonNil(mapVal(rawLay, "rows"), cfg["rows"], baseLayout.Rows),
-			"serialNumber": firstNonNil(cfg["serialNumber"], mapVal(rawLay, "serialNumber"), baseLayout.SerialNumber),
-			"path":         firstNonNil(cfg["path"], mapVal(rawLay, "path"), baseLayout.Path),
-			"layout":       cfg["layout"],
-		}
-		p.Layout = NormalizeLayoutConfig(merged)
-	} else {
-		p.Layout = baseLayout
-	}
+	p.Layout = doc.NormalizeLayout(baseLayout)
 	p.Device = p.Layout.Device
 
-	rawParams, _ := cfg["parameters"].(map[string]any)
-	rawDefault, _ := cfg["default"].(map[string]any)
-	rawTouch, _ := cfg["touch"].(map[string]any)
-	rawButtons, _ := cfg["buttons"].(map[string]any)
-	rawKnobs, _ := cfg["knobs"].(map[string]any)
+	var rawDefault map[string]any
+	if doc.Default != nil {
+		rawDefault = doc.Default.ToMap()
+	}
 
-	p.Parameters = NewParametersConfig(rawParams)
+	p.Parameters = NewParametersConfig(doc.Parameters)
 	p.Default = NewDefaultConfig(rawDefault)
-	p.Touch = NewTouchConfig(rawTouch, p.Default)
-	p.Buttons = NewButtonConfig(rawButtons, p.profileCount, p.index)
-	p.Knobs = NewKnobsConfig(rawKnobs)
+	p.Touch = NewTouchConfig(doc.Touch.ToMap(), p.Default)
+	p.Buttons = NewButtonConfig(controlsMapToUntyped(doc.Buttons), p.profileCount, p.index)
+	p.Knobs = NewKnobsConfig(controlsMapToUntyped(doc.Knobs))
 
 	p.Loaded = true
 	return true
