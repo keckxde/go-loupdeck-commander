@@ -28,12 +28,13 @@ var iconExtRegex = regexp.MustCompile(`(?i)\.(png|jpg|jpeg|svg|gif)$`)
 const maxBodyBytes = 1024 * 1024 // 1 MB
 
 type ServerOptions struct {
-	Config  string
-	Port    int
-	Host    string
-	DryRun  *bool
-	Model   string
-	BaseDir string
+	Config     string
+	Port       int
+	Host       string
+	DryRun     *bool
+	Model      string
+	BaseDir    string
+	DeviceOnly bool
 }
 
 type ServerInstance struct {
@@ -284,7 +285,7 @@ func StartEmulatorServer(opts ServerOptions) (*ServerInstance, error) {
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		pathname := r.URL.Path
 
-		if r.Method == http.MethodGet && (pathname == "/" || pathname == "/index.html") {
+		if r.Method == http.MethodGet && (pathname == "/" || pathname == "/index.html" || pathname == "/panel") {
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write(emulatorUIHTML)
@@ -342,6 +343,7 @@ func StartEmulatorServer(opts ServerOptions) (*ServerInstance, error) {
 				"profilesData":   profilesData,
 				"availableIcons": listAvailableIcons(baseDir),
 				"dryRun":         handler.Ifaces.GetSimulationMode(),
+				"deviceOnly":     opts.DeviceOnly,
 			})
 			return
 		}
@@ -586,7 +588,11 @@ func StartEmulatorServer(opts ServerOptions) (*ServerInstance, error) {
 	if handler.Ifaces.GetSimulationMode() {
 		modeLabel = "Simulated (Safe Dry-Run)"
 	}
-	fmt.Printf("\n🎛️  Loupedeck Emulator & Configuration Studio running at: http://%s:%d\n", displayHost, actualPort)
+	uiLabel := "Loupedeck Emulator & Configuration Studio"
+	if opts.DeviceOnly {
+		uiLabel = "Loupedeck Virtual Console (Device-Only)"
+	}
+	fmt.Printf("\n🎛️  %s running at: http://%s:%d\n", uiLabel, displayHost, actualPort)
 	fmt.Printf("   Config File: %s\n", configFile)
 	fmt.Printf("   Interface Mode: %s\n\n", modeLabel)
 

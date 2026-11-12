@@ -22,7 +22,9 @@ func TestParseArgsVersionAndCommands(t *testing.T) {
 		{name: "validate command", argv: []string{"loupedeck-commander", "validate"}, wantCmd: "validate"},
 		{name: "validate positional config", argv: []string{"loupedeck-commander", "validate", "config/config.yaml"}, wantCmd: "validate", wantCfg: "config/config.yaml"},
 		{name: "emulate command", argv: []string{"loupedeck-commander", "emulate"}, wantCmd: "emulate"},
+		{name: "panel command (live device-only)", argv: []string{"loupedeck-commander", "panel", "config/config.yaml"}, wantCmd: "panel", wantCfg: "config/config.yaml"},
 		{name: "loupedeck-emulator shortcut", argv: []string{"loupedeck-emulator"}, wantCmd: "emulate"},
+		{name: "loupedeck-emulator panel mode", argv: []string{"loupedeck-emulator", "panel"}, wantCmd: "panel"},
 		{name: "loupedeck-emulator positional config", argv: []string{"loupedeck-emulator", "config/config.yaml"}, wantCmd: "emulate", wantCfg: "config/config.yaml"},
 		{name: "loupedeck-emulator path shortcut", argv: []string{"/usr/bin/loupedeck-emulator", "--port=4000"}, wantCmd: "emulate"},
 	}

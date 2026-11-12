@@ -69,13 +69,14 @@ loupedeck-emulator [config-file] [options]  # Direct shortcut for 'loupedeck-com
 
 ### Commands
 
-| Command    | Description                                                          |
-| :--------- | :------------------------------------------------------------------- |
-| `run`      | Start the Loupedeck Commander hardware daemon *(default)*            |
-| `emulate`  | Start the interactive Web Emulator & Configuration Studio            |
-| `validate` | Validate configuration and profile files for errors and deprecations |
-| `version`  | Print version, Git tag/commit, Go toolchain, and build timestamp     |
-| `help`     | Show CLI usage and options                                           |
+| Command    | Description                                                                              |
+| :--------- | :--------------------------------------------------------------------------------------- |
+| `run`      | Start the Loupedeck Commander hardware daemon *(default)*                                |
+| `emulate`  | Start the interactive Web Emulator & Configuration Studio                                |
+| `panel`    | Start the Web Emulator in **Live Mode** showing only the device console (no Studio UI)   |
+| `validate` | Validate configuration and profile files for errors and deprecations                     |
+| `version`  | Print version, Git tag/commit, Go toolchain, and build timestamp                         |
+| `help`     | Show CLI usage and options                                                               |
 
 ### Options
 
@@ -85,6 +86,7 @@ loupedeck-emulator [config-file] [options]  # Direct shortcut for 'loupedeck-com
 | `--host=<hostname>`     | Resolve `config/config-<hostname>.yaml`                                                     |
 | `--port=<number>`, `-p` | HTTP port for the Web Emulator (default: `3080`)                                            |
 | `--live`                | Execute real Shell/HTTP/OPC UA calls in emulator mode (default is safe dry-run)             |
+| `--device-only`         | Show only the Loupedeck device in the web UI (hide Studio, config editor & log panels)      |
 | `--model=<model>`       | Emulated device model: `live` \| `ct` \| `live-s` \| `razer` \| `razer-x` (default: `live`) |
 | `--fix`                 | Automatically fix deprecated button attributes & typos during `validate`                    |
 | `--version`, `-v`       | Print version information and exit                                                          |
@@ -104,6 +106,10 @@ loupedeck-emulator [config-file] [options]  # Direct shortcut for 'loupedeck-com
 
 # Or with custom config & options on port 3080 (safe dry-run mode)
 ./loupedeck-emulator config/config.yaml --port=3080
+
+# Launch Web Emulator in Live Mode showing ONLY the virtual device console (no Studio UI)
+./loupedeck-commander panel config/config.yaml
+# (or: ./loupedeck-emulator --live --device-only)
 
 # Validate configuration and auto-fix deprecated profile attributes
 ./loupedeck-commander validate config/config.yaml --fix

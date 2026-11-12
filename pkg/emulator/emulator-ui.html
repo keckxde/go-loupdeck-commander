@@ -704,6 +704,40 @@
       border-radius: 6px;
       padding: 0.75rem;
     }
+
+    /* Device-Only Mode (Live Virtual Console without Studio / Configuration UI) */
+    body.device-only header.topbar,
+    body.device-only #activityLogPanel,
+    body.device-only #studioColumn,
+    body.device-only #devicePanel > .panel-header,
+    body.device-only .cell-badge {
+      display: none !important;
+    }
+
+    body.device-only main.workspace {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 1.5rem;
+    }
+
+    body.device-only #devicePanel {
+      background: transparent;
+      border: none;
+      margin: 0;
+    }
+
+    body.device-only #devicePanel > .panel-body {
+      padding: 0;
+    }
+
+    body.device-only .knob-circle.selected,
+    body.device-only .touch-cell-overlay.selected,
+    body.device-only .side-strip-wrapper.selected,
+    body.device-only .phys-btn.selected {
+      outline: none;
+    }
   </style>
 </head>
 <body>
@@ -733,8 +767,8 @@
 
   <main class="workspace">
     <!-- Left Column: Interactive Loupedeck Hardware Emulator + Activity Log -->
-    <div>
-      <section class="panel">
+    <div id="deviceColumn">
+      <section class="panel" id="devicePanel">
         <div class="panel-header">
           <h2>Interactive Loupedeck Live / CT Hardware Emulator</h2>
           <div style="display:flex;gap:0.5rem;align-items:center;font-size:0.78rem;color:var(--text-muted);">
@@ -784,7 +818,7 @@
       </section>
 
       <!-- Real-Time Interface & Command Execution Log -->
-      <section class="panel">
+      <section class="panel" id="activityLogPanel">
         <div class="panel-header">
           <h2>Interface &amp; Command Log (Shell / HTTP / OPC UA)</h2>
           <button id="clearLogBtn" class="btn btn-sm" type="button">Clear</button>
@@ -798,7 +832,7 @@
     </div>
 
     <!-- Right Column: Configuration Editor, Validity Checker & OPC UA Simulator -->
-    <div>
+    <div id="studioColumn">
       <section class="panel">
         <div class="tabs" role="tablist">
           <button class="tab-btn active" data-tab="inspectorTab" role="tab" aria-selected="true">🛠️ Button &amp; State Editor</button>
@@ -1975,9 +2009,23 @@
 
     // Initial load & SSE subscription
     async function initApp() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlDeviceOnly = window.location.pathname === '/panel' ||
+                            urlParams.has('deviceOnly') ||
+                            urlParams.get('mode') === 'device' ||
+                            urlParams.get('mode') === 'panel';
+      if (urlDeviceOnly) {
+        document.body.classList.add('device-only');
+        document.title = 'Loupedeck Commander — Virtual Console';
+      }
+
       buildHardwareDOM();
       const res = await fetch('/api/state');
       const data = await res.json();
+      if (data.deviceOnly || urlDeviceOnly) {
+        document.body.classList.add('device-only');
+        document.title = 'Loupedeck Commander — Virtual Console';
+      }
       appState.profilesData = data.profilesData || [];
       appState.availableIcons = data.availableIcons || [];
       appState.dryRun = data.dryRun;

@@ -81,12 +81,13 @@ func resolveDefaultConfig(baseDir, host string) string {
 }
 
 type cliArgs struct {
-	command string
-	config  string
-	port    int
-	live    bool
-	fix     bool
-	model   string
+	command    string
+	config     string
+	port       int
+	live       bool
+	deviceOnly bool
+	fix        bool
+	model      string
 }
 
 func parseArgs(argv []string) cliArgs {
@@ -100,12 +101,13 @@ func parseArgs(argv []string) cliArgs {
 		}
 	}
 	args := cliArgs{
-		command: defaultCmd,
-		config:  "config/config.yaml",
-		port:    3080,
-		live:    false,
-		fix:     false,
-		model:   "live",
+		command:    defaultCmd,
+		config:     "config/config.yaml",
+		port:       3080,
+		live:       false,
+		deviceOnly: false,
+		fix:        false,
+		model:      "live",
 	}
 
 	for i := 1; i < len(argv); i++ {
@@ -115,6 +117,10 @@ func parseArgs(argv []string) cliArgs {
 			switch lower {
 			case "emulate", "emulator", "validate", "help", "version", "run":
 				args.command = lower
+			case "panel", "device", "kiosk":
+				args.command = "panel"
+				args.live = true
+				args.deviceOnly = true
 			default:
 				args.config = token
 				explicitConfig = true
@@ -159,6 +165,12 @@ func parseArgs(argv []string) cliArgs {
 			}
 		case "live":
 			args.live = !hasEq || val == "" || strings.EqualFold(val, "true")
+		case "device-only", "device", "panel", "kiosk":
+			args.deviceOnly = !hasEq || val == "" || strings.EqualFold(val, "true")
+			if args.command == "run" {
+				args.command = "panel"
+				args.live = true
+			}
 		case "fix":
 			args.fix = !hasEq || val == "" || strings.EqualFold(val, "true")
 		case "model":
@@ -193,6 +205,7 @@ Usage:
 Commands:
   run         Start the Loupedeck Commander hardware daemon (default)
   emulate     Start the interactive Web Emulator & Configuration Studio
+  panel       Start the Web Emulator in Live Mode showing only the device console (no Studio UI)
   validate    Validate configuration & profile files for errors and deprecations
   version     Print version, git tag/commit, and build metadata
   help        Show this help message
@@ -202,6 +215,7 @@ Options:
   --host=<hostname> Resolve config/config-<hostname>.yaml
   --port=<number>   HTTP port for the Web Emulator (default: 3080)
   --live            Execute real Shell/HTTP/OPC UA calls in emulator mode
+  --device-only     Show only the Loupedeck device in the web UI (hide Studio/Config panels)
   --model=<model>   Emulated device model: live | ct | live-s | razer | razer-x (default: live)
   --fix             Automatically fix deprecated button attributes & typos during 'validate'
   --version, -v     Print version information and exit
@@ -319,14 +333,15 @@ func main() {
 		return
 	case "validate":
 		os.Exit(runValidate(args))
-	case "emulate", "emulator":
+	case "emulate", "emulator", "panel", "device", "kiosk":
 		fmt.Println(formatVersion())
 		dryRun := !args.live
 		srv, err := emulator.StartEmulatorServer(emulator.ServerOptions{
-			Config: args.config,
-			Port:   args.port,
-			DryRun: &dryRun,
-			Model:  args.model,
+			Config:     args.config,
+			Port:       args.port,
+			DryRun:     &dryRun,
+			Model:      args.model,
+			DeviceOnly: args.deviceOnly,
 		})
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to start emulator server: %v\n", err)
