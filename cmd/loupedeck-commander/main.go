@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -83,6 +84,7 @@ func resolveDefaultConfig(baseDir, host string) string {
 type cliArgs struct {
 	command    string
 	config     string
+	bind       string
 	port       int
 	live       bool
 	dryRunSet  bool
@@ -105,6 +107,7 @@ func parseArgs(argv []string) cliArgs {
 	args := cliArgs{
 		command:    defaultCmd,
 		config:     "config/config.yaml",
+		bind:       "0.0.0.0",
 		port:       3080,
 		live:       false,
 		dryRunSet:  false,
@@ -178,9 +181,34 @@ func parseArgs(argv []string) cliArgs {
 				args.config = fmt.Sprintf("config/config-%s.yaml", host)
 				explicitConfig = true
 			}
+		case "bind", "b", "listen", "addr", "address":
+			bVal := nextVal("0.0.0.0")
+			if h, pStr, err := net.SplitHostPort(bVal); err == nil {
+				if p, err := strconv.Atoi(pStr); err == nil && p > 0 {
+					if h != "" {
+						args.bind = h
+					} else {
+						args.bind = "0.0.0.0"
+					}
+					args.port = p
+				} else {
+					args.bind = bVal
+				}
+			} else {
+				args.bind = bVal
+			}
 		case "port", "p":
 			pStr := nextVal("3080")
-			if p, err := strconv.Atoi(pStr); err == nil && p > 0 {
+			if strings.Contains(pStr, ":") {
+				if h, portPart, err := net.SplitHostPort(pStr); err == nil {
+					if p, err := strconv.Atoi(portPart); err == nil && p > 0 {
+						if h != "" {
+							args.bind = h
+						}
+						args.port = p
+					}
+				}
+			} else if p, err := strconv.Atoi(pStr); err == nil && p > 0 {
 				args.port = p
 			}
 		case "hybrid", "both", "mirror", "dual", "with-hardware", "hardware", "physical", "with-emulator":
@@ -258,6 +286,7 @@ Commands:
 Options:
   --config=<file>   Application config file (default: config/config.yaml or config/config-<hostname>.yaml)
   --host=<hostname> Resolve config/config-<hostname>.yaml
+  --bind=<addr>     Bind address for the Web Emulator (default: 0.0.0.0 for all interfaces; use 127.0.0.1 for local-only)
   --port=<number>   HTTP port for the Web Emulator (default: 3080)
   --hybrid, --both  Run physical hardware & Web Emulator simultaneously (defaults to live mode)
   --live            Execute real Shell/HTTP/OPC UA calls in emulator/hybrid mode
@@ -390,6 +419,7 @@ func main() {
 		dryRun := !args.live
 		srv, err := emulator.StartEmulatorServer(emulator.ServerOptions{
 			Config:     args.config,
+			Host:       args.bind,
 			Port:       args.port,
 			DryRun:     &dryRun,
 			Model:      args.model,

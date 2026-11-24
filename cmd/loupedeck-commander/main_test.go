@@ -100,3 +100,52 @@ func TestFormatVersion(t *testing.T) {
 	}
 }
 
+func TestParseArgsBindAndPort(t *testing.T) {
+	t.Run("default bind and port", func(t *testing.T) {
+		got := parseArgs([]string{"loupedeck-commander", "emulate"})
+		if got.bind != "0.0.0.0" {
+			t.Fatalf("default bind = %q, want %q", got.bind, "0.0.0.0")
+		}
+		if got.port != 3080 {
+			t.Fatalf("default port = %d, want %d", got.port, 3080)
+		}
+	})
+
+	t.Run("--bind=127.0.0.1", func(t *testing.T) {
+		got := parseArgs([]string{"loupedeck-commander", "emulate", "--bind=127.0.0.1"})
+		if got.bind != "127.0.0.1" {
+			t.Fatalf("bind = %q, want %q", got.bind, "127.0.0.1")
+		}
+		if got.port != 3080 {
+			t.Fatalf("port = %d, want %d", got.port, 3080)
+		}
+	})
+
+	t.Run("--bind=192.168.1.50:4080", func(t *testing.T) {
+		got := parseArgs([]string{"loupedeck-commander", "emulate", "--bind=192.168.1.50:4080"})
+		if got.bind != "192.168.1.50" || got.port != 4080 {
+			t.Fatalf("got bind=%q port=%d, want bind=%q port=%d", got.bind, got.port, "192.168.1.50", 4080)
+		}
+	})
+
+	t.Run("--listen=127.0.0.1:8080", func(t *testing.T) {
+		got := parseArgs([]string{"loupedeck-commander", "emulate", "--listen=127.0.0.1:8080"})
+		if got.bind != "127.0.0.1" || got.port != 8080 {
+			t.Fatalf("got bind=%q port=%d, want bind=%q port=%d", got.bind, got.port, "127.0.0.1", 8080)
+		}
+	})
+
+	t.Run("-b short flag", func(t *testing.T) {
+		got := parseArgs([]string{"loupedeck-commander", "emulate", "-b", "127.0.0.1"})
+		if got.bind != "127.0.0.1" {
+			t.Fatalf("bind = %q, want %q", got.bind, "127.0.0.1")
+		}
+	})
+
+	t.Run("--port=127.0.0.1:3090", func(t *testing.T) {
+		got := parseArgs([]string{"loupedeck-commander", "emulate", "--port=127.0.0.1:3090"})
+		if got.bind != "127.0.0.1" || got.port != 3090 {
+			t.Fatalf("got bind=%q port=%d, want bind=%q port=%d", got.bind, got.port, "127.0.0.1", 3090)
+		}
+	})
+}

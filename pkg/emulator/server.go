@@ -115,7 +115,7 @@ func StartEmulatorServer(opts ServerOptions) (*ServerInstance, error) {
 	}
 	host := opts.Host
 	if host == "" {
-		host = "127.0.0.1"
+		host = "0.0.0.0"
 	}
 	dryRun := true
 	if opts.DryRun != nil {
@@ -570,7 +570,7 @@ func StartEmulatorServer(opts ServerOptions) (*ServerInstance, error) {
 		sendJSON(w, http.StatusNotFound, map[string]interface{}{"error": "Not found"})
 	})
 
-	addr := fmt.Sprintf("%s:%d", host, port)
+	addr := net.JoinHostPort(host, fmt.Sprintf("%d", port))
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		_ = handler.Stop()
@@ -586,7 +586,7 @@ func StartEmulatorServer(opts ServerOptions) (*ServerInstance, error) {
 	}()
 
 	displayHost := host
-	if displayHost == "0.0.0.0" {
+	if displayHost == "0.0.0.0" || displayHost == "::" {
 		displayHost = "localhost"
 	}
 	modeLabel := "Live Execution"
@@ -602,7 +602,13 @@ func StartEmulatorServer(opts ServerOptions) (*ServerInstance, error) {
 		uiLabel = "Loupedeck Virtual Console (Device-Only)"
 	}
 	fmt.Printf("\n🎛️  %s running at: http://%s:%d\n", uiLabel, displayHost, actualPort)
-	fmt.Printf("   Config File: %s\n", configFile)
+	if host == "0.0.0.0" || host == "::" {
+		for _, lanIP := range detectLANIPv4s() {
+			fmt.Printf("   Network URL:    http://%s:%d\n", lanIP, actualPort)
+		}
+	}
+	fmt.Printf("   Bind Address:   %s:%d\n", host, actualPort)
+	fmt.Printf("   Config File:    %s\n", configFile)
 	fmt.Printf("   Interface Mode: %s\n\n", modeLabel)
 
 	return &ServerInstance{
@@ -612,4 +618,22 @@ func StartEmulatorServer(opts ServerOptions) (*ServerInstance, error) {
 		EmulatedDevice: emulatedDevice,
 		Port:           actualPort,
 	}, nil
+}
+
+func detectLANIPv4s() []string {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return nil
+	}
+	var ips []string
+	for _, a := range addrs {
+		ipNet, ok := a.(*net.IPNet)
+		if !ok || ipNet.IP.IsLoopback() {
+			continue
+		}
+		if v4 := ipNet.IP.To4(); v4 != nil {
+			ips = append(ips, v4.String())
+		}
+	}
+	return ips
 }

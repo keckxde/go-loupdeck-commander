@@ -86,7 +86,8 @@ loupedeck-emulator [config-file] [options]  # Direct shortcut for 'loupedeck-com
 | :---------------------- | :------------------------------------------------------------------------------------------ |
 | `--config=<file>`, `-c` | Application config file (default: `config/config.yaml` or `config/config-<hostname>.yaml`)  |
 | `--host=<hostname>`     | Resolve `config/config-<hostname>.yaml`                                                     |
-| `--port=<number>`, `-p` | HTTP port for the Web Emulator (default: `3080`)                                            |
+| `--bind=<addr>`, `-b`   | Bind IP/address for the Web Emulator (default: `0.0.0.0` for LAN/network access; use `127.0.0.1` for local-only) |
+| `--port=<number>`, `-p` | HTTP port (or `host:port`) for the Web Emulator (default: `3080`)                           |
 | `--hybrid`, `--both`    | Run physical hardware & Web Emulator simultaneously (defaults to live execution mode)       |
 | `--live`                | Execute real Shell/HTTP/OPC UA calls in emulator/hybrid mode (default in `hybrid`/`panel`)  |
 | `--dry-run`             | Simulate Shell/HTTP/OPC UA calls instead of executing them (useful with `hybrid --dry-run`) |
@@ -106,10 +107,13 @@ loupedeck-emulator [config-file] [options]  # Direct shortcut for 'loupedeck-com
 ./loupedeck-commander config/config.yaml
 
 # Launch Web Emulator & Configuration Studio directly via the one-call shortcut
+# Listens on 0.0.0.0:3080 by default (accessible locally via http://localhost:3080
+# and from other devices on the network via http://<host-ip>:3080)
 ./loupedeck-emulator
 
-# Or with custom config & options on port 3080 (safe dry-run mode)
+# Or with custom config & options on port 3080 (safe dry-run mode), or restricted to localhost
 ./loupedeck-emulator config/config.yaml --port=3080
+./loupedeck-emulator --bind=127.0.0.1 --port=3080
 
 # Launch Hybrid Mode (physical hardware + Web Emulator Studio synchronized, live mode)
 ./loupedeck-commander hybrid config/config.yaml
