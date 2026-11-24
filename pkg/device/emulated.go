@@ -8,24 +8,31 @@ import (
 	"time"
 )
 
+// StateChangeEvent describes a visual or hardware state update emitted by
+// EmulatedLoupedeckDevice when brightness, vibration, button LEDs, or screens change.
 type StateChangeEvent struct {
-	Type         string                 `json:"type"`
-	Brightness   float64                `json:"brightness,omitempty"`
-	Pattern      byte                   `json:"pattern,omitempty"`
-	Timestamp    int64                  `json:"timestamp,omitempty"`
-	ID           interface{}            `json:"id,omitempty"`
-	Color        string                 `json:"color,omitempty"`
-	ButtonColors map[string]string      `json:"buttonColors,omitempty"`
-	Screen       string                 `json:"screen,omitempty"`
-	DataURL      string                 `json:"dataUrl,omitempty"`
+	Type         string            `json:"type"`
+	Brightness   float64           `json:"brightness,omitempty"`
+	Pattern      byte              `json:"pattern,omitempty"`
+	Timestamp    int64             `json:"timestamp,omitempty"`
+	ID           interface{}       `json:"id,omitempty"`
+	Color        string            `json:"color,omitempty"`
+	ButtonColors map[string]string `json:"buttonColors,omitempty"`
+	Screen       string            `json:"screen,omitempty"`
+	DataURL      string            `json:"dataUrl,omitempty"`
 }
 
+// EmulatedDeviceOptions configures the model and optional grid dimensions when
+// instantiating an EmulatedLoupedeckDevice.
 type EmulatedDeviceOptions struct {
 	Model   string
 	Columns int
 	Rows    int
 }
 
+// EmulatedLoupedeckDevice is an in-memory software emulation of a Loupedeck or
+// Razer Stream Controller device that implements Device. State reads and writes
+// are synchronized with Mu, and callbacks are invoked outside the lock.
 type EmulatedLoupedeckDevice struct {
 	Mu            sync.RWMutex
 	Type          string
@@ -55,6 +62,9 @@ type EmulatedLoupedeckDevice struct {
 	OnStateChange func(evt StateChangeEvent)
 }
 
+// NewEmulatedLoupedeckDevice creates an EmulatedLoupedeckDevice configured for
+// the requested model (defaulting to Loupedeck Live) with optional row/column
+// overrides, and initializes all screen canvases to black.
 func NewEmulatedLoupedeckDevice(opts EmulatedDeviceOptions) *EmulatedLoupedeckDevice {
 	d := &EmulatedLoupedeckDevice{
 		Type:       "Loupedeck Live (Emulated)",
@@ -122,6 +132,8 @@ func NewEmulatedLoupedeckDevice(opts EmulatedDeviceOptions) *EmulatedLoupedeckDe
 	return d
 }
 
+// initCanvases allocates a Canvas for each configured display, clears it to
+// black, and populates ScreenDataURL with its initial PNG data URL.
 func (d *EmulatedLoupedeckDevice) initCanvases() {
 	for name, dim := range d.Displays {
 		c := NewCanvas(dim.Width, dim.Height)
@@ -133,22 +145,42 @@ func (d *EmulatedLoupedeckDevice) initCanvases() {
 	}
 }
 
-func (d *EmulatedLoupedeckDevice) GetType() string                   { return d.Type }
-func (d *EmulatedLoupedeckDevice) GetModel() string                  { return d.Model }
-func (d *EmulatedLoupedeckDevice) GetRows() int                      { return d.Rows }
-func (d *EmulatedLoupedeckDevice) GetColumns() int                   { return d.Columns }
-func (d *EmulatedLoupedeckDevice) GetKeySize() int                   { return d.KeySize }
-func (d *EmulatedLoupedeckDevice) GetVisibleX() [2]int               { return d.VisibleX }
-func (d *EmulatedLoupedeckDevice) GetDisplays() map[string]DisplayInfo { return d.Displays }
-func (d *EmulatedLoupedeckDevice) GetButtons() []interface{}         { return d.Buttons }
-func (d *EmulatedLoupedeckDevice) GetKnobs() []string                { return d.Knobs }
+// GetType returns the human-readable emulated device type name.
+func (d *EmulatedLoupedeckDevice) GetType() string { return d.Type }
 
+// GetModel returns the normalized device model identifier.
+func (d *EmulatedLoupedeckDevice) GetModel() string { return d.Model }
+
+// GetRows returns the number of touch key rows on the emulated device.
+func (d *EmulatedLoupedeckDevice) GetRows() int { return d.Rows }
+
+// GetColumns returns the number of touch key columns on the emulated device.
+func (d *EmulatedLoupedeckDevice) GetColumns() int { return d.Columns }
+
+// GetKeySize returns the width and height of each touch key in pixels.
+func (d *EmulatedLoupedeckDevice) GetKeySize() int { return d.KeySize }
+
+// GetVisibleX returns the visible horizontal pixel range [minX, maxX].
+func (d *EmulatedLoupedeckDevice) GetVisibleX() [2]int { return d.VisibleX }
+
+// GetDisplays returns the map of named display regions and their dimensions.
+func (d *EmulatedLoupedeckDevice) GetDisplays() map[string]DisplayInfo { return d.Displays }
+
+// GetButtons returns the slice of physical button identifiers supported by the model.
+func (d *EmulatedLoupedeckDevice) GetButtons() []interface{} { return d.Buttons }
+
+// GetKnobs returns the slice of rotary knob identifiers supported by the model.
+func (d *EmulatedLoupedeckDevice) GetKnobs() []string { return d.Knobs }
+
+// GetScreenDataURL returns the latest PNG data URL for screenName under a read lock.
 func (d *EmulatedLoupedeckDevice) GetScreenDataURL(screenName string) string {
 	d.Mu.RLock()
 	defer d.Mu.RUnlock()
 	return d.ScreenDataURL[screenName]
 }
 
+// Connect marks the emulated device as connected and invokes OnConnect with
+// "emulator://localhost" if configured.
 func (d *EmulatedLoupedeckDevice) Connect() error {
 	d.Mu.Lock()
 	d.Connected = true
@@ -160,6 +192,7 @@ func (d *EmulatedLoupedeckDevice) Connect() error {
 	return nil
 }
 
+// Close marks the emulated device as disconnected and invokes OnDisconnect if configured.
 func (d *EmulatedLoupedeckDevice) Close() error {
 	d.Mu.Lock()
 	d.Connected = false
@@ -171,6 +204,8 @@ func (d *EmulatedLoupedeckDevice) Close() error {
 	return nil
 }
 
+// SetBrightness clamps value to [0, 1], updates Brightness, and emits a
+// "brightness" StateChangeEvent via OnStateChange.
 func (d *EmulatedLoupedeckDevice) SetBrightness(value float64) error {
 	if value < 0 {
 		value = 0
@@ -191,6 +226,8 @@ func (d *EmulatedLoupedeckDevice) SetBrightness(value float64) error {
 	return nil
 }
 
+// Vibrate records pattern and the current Unix millisecond timestamp in
+// LastVibration and emits a "vibrate" StateChangeEvent via OnStateChange.
 func (d *EmulatedLoupedeckDevice) Vibrate(pattern byte) error {
 	ts := time.Now().UnixMilli()
 	d.Mu.Lock()
@@ -210,6 +247,8 @@ func (d *EmulatedLoupedeckDevice) Vibrate(pattern byte) error {
 	return nil
 }
 
+// SetButtonColor stores color for button id and emits a "buttonColor"
+// StateChangeEvent via OnStateChange if the button's color changed.
 func (d *EmulatedLoupedeckDevice) SetButtonColor(id interface{}, color string) error {
 	key := fmt.Sprintf("%v", id)
 	d.Mu.Lock()
@@ -232,6 +271,9 @@ func (d *EmulatedLoupedeckDevice) SetButtonColor(id interface{}, color string) e
 	return nil
 }
 
+// DrawScreen clears screenName to black, runs drawCallback on its Context2D,
+// updates ScreenDataURL if the rendered PNG changed, and emits a "screen"
+// StateChangeEvent via OnStateChange.
 func (d *EmulatedLoupedeckDevice) DrawScreen(screenName string, drawCallback func(ctx *Context2D) error) error {
 	d.Mu.Lock()
 	canvas, exists := d.Canvases[screenName]
@@ -266,6 +308,8 @@ func (d *EmulatedLoupedeckDevice) DrawScreen(screenName string, drawCallback fun
 	return nil
 }
 
+// normalizeTriggerID coerces simulated button trigger identifiers (int, float64,
+// or numeric string) into canonical int or trimmed string keys.
 func normalizeTriggerID(id interface{}) interface{} {
 	switch v := id.(type) {
 	case int:
@@ -287,6 +331,8 @@ func normalizeTriggerID(id interface{}) interface{} {
 	}
 }
 
+// TriggerButtonDown simulates a physical button press for id and invokes OnDown
+// with the normalized button identifier.
 func (d *EmulatedLoupedeckDevice) TriggerButtonDown(id interface{}) {
 	norm := normalizeTriggerID(id)
 	d.Mu.RLock()
@@ -297,6 +343,8 @@ func (d *EmulatedLoupedeckDevice) TriggerButtonDown(id interface{}) {
 	}
 }
 
+// TriggerButtonUp simulates a physical button release for id and invokes OnUp
+// with the normalized button identifier.
 func (d *EmulatedLoupedeckDevice) TriggerButtonUp(id interface{}) {
 	norm := normalizeTriggerID(id)
 	d.Mu.RLock()
@@ -307,6 +355,8 @@ func (d *EmulatedLoupedeckDevice) TriggerButtonUp(id interface{}) {
 	}
 }
 
+// TriggerRotate simulates rotating knob id by delta steps (defaulting 0 to 1)
+// and invokes OnRotate.
 func (d *EmulatedLoupedeckDevice) TriggerRotate(id string, delta int) {
 	if delta == 0 {
 		delta = 1
@@ -319,6 +369,8 @@ func (d *EmulatedLoupedeckDevice) TriggerRotate(id string, delta int) {
 	}
 }
 
+// TriggerTouchStart simulates a touch press on screen/key at (x, y) and invokes
+// OnTouchStart. Key index is only preserved when screen is "center".
 func (d *EmulatedLoupedeckDevice) TriggerTouchStart(screen string, key int, x, y float64) {
 	tKey := 0
 	if screen == "center" {
@@ -340,6 +392,8 @@ func (d *EmulatedLoupedeckDevice) TriggerTouchStart(screen string, key int, x, y
 	}
 }
 
+// TriggerTouchMove simulates a touch drag on screen/key at (x, y) and invokes
+// OnTouchMove. Key index is only preserved when screen is "center".
 func (d *EmulatedLoupedeckDevice) TriggerTouchMove(screen string, key int, x, y float64) {
 	tKey := 0
 	if screen == "center" {
@@ -361,6 +415,9 @@ func (d *EmulatedLoupedeckDevice) TriggerTouchMove(screen string, key int, x, y 
 	}
 }
 
+// TriggerTouchEnd simulates a touch release on screen/key at (x, y) and invokes
+// OnTouchEnd with an empty active Touches slice. Key index is only preserved
+// when screen is "center".
 func (d *EmulatedLoupedeckDevice) TriggerTouchEnd(screen string, key int, x, y float64) {
 	tKey := 0
 	if screen == "center" {
@@ -382,6 +439,9 @@ func (d *EmulatedLoupedeckDevice) TriggerTouchEnd(screen string, key int, x, y f
 	}
 }
 
+// GetSnapshot returns a thread-safe, JSON-ready map describing the emulated
+// device's connection state, brightness, last vibration, button colors,
+// rendered screen data URLs, display dimensions, and grid layout.
 func (d *EmulatedLoupedeckDevice) GetSnapshot() map[string]interface{} {
 	d.Mu.RLock()
 	defer d.Mu.RUnlock()
@@ -434,4 +494,3 @@ func (d *EmulatedLoupedeckDevice) GetSnapshot() map[string]interface{} {
 		"columns":       d.Columns,
 	}
 }
-

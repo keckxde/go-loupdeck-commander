@@ -25,12 +25,16 @@ import (
 	"golang.org/x/image/math/fixed"
 )
 
+// cachedIconEntry stores a decoded icon image alongside its file metadata for
+// mtime-and-size cache invalidation.
 type cachedIconEntry struct {
 	img   image.Image
 	mtime time.Time
 	size  int64
 }
 
+// scaledIconKey uniquely identifies a cached bilinear-scaled RGBA image by
+// source image reference and target pixel dimensions.
 type scaledIconKey struct {
 	src image.Image
 	w   int
@@ -52,6 +56,8 @@ var (
 	fontSizeRe  = regexp.MustCompile(`(\d+(?:\.\d+)?)px`)
 )
 
+// initFonts lazily parses the embedded Go Regular and Go Bold TrueType fonts
+// once per process.
 func initFonts() {
 	fontOnce.Do(func() {
 		regularFont, _ = opentype.Parse(goregular.TTF)
@@ -59,6 +65,9 @@ func initFonts() {
 	})
 }
 
+// getFontFace parses a CSS-like font specification (e.g., "bold 15px Arial") and
+// returns a cached OpenType font.Face along with the resolved pixel size.
+// Returns (nil, size) if font parsing or face creation fails.
 func getFontFace(fontSpec string) (font.Face, float64) {
 	initFonts()
 	size := 15.0
@@ -94,6 +103,9 @@ func getFontFace(fontSpec string) (font.Face, float64) {
 	return face, size
 }
 
+// LoadCachedImage decodes an image (PNG, JPEG, or GIF) from filePath and caches
+// the result in memory, invalidating the cache entry if the file's modification
+// time or byte size changes.
 func LoadCachedImage(filePath string) (image.Image, error) {
 	stat, err := os.Stat(filePath)
 	if err != nil {
@@ -128,12 +140,14 @@ func LoadCachedImage(filePath string) (image.Image, error) {
 	return img, nil
 }
 
+// Canvas represents an off-screen RGBA pixel surface used to render device screens.
 type Canvas struct {
 	Width  int
 	Height int
 	Img    *image.RGBA
 }
 
+// NewCanvas allocates a new Canvas of the given pixel width and height.
 func NewCanvas(width, height int) *Canvas {
 	img := image.NewRGBA(image.Rect(0, 0, width, height))
 	return &Canvas{
@@ -143,6 +157,8 @@ func NewCanvas(width, height int) *Canvas {
 	}
 }
 
+// GetContext2D returns a new Context2D bound to the Canvas with default
+// HTML5-style fill, font, alignment, and compositing properties.
 func (c *Canvas) GetContext2D() *Context2D {
 	return &Context2D{
 		Canvas:                   c,
@@ -154,6 +170,7 @@ func (c *Canvas) GetContext2D() *Context2D {
 	}
 }
 
+// ToPNGBytes encodes the Canvas RGBA image into fast-compressed PNG bytes.
 func (c *Canvas) ToPNGBytes() ([]byte, error) {
 	var buf bytes.Buffer
 	if err := fastPNGEnc.Encode(&buf, c.Img); err != nil {
@@ -162,6 +179,8 @@ func (c *Canvas) ToPNGBytes() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+// ToDataURL encodes the Canvas as a base64-encoded PNG data URL, returning an
+// empty string if PNG encoding fails.
 func (c *Canvas) ToDataURL() string {
 	b, err := c.ToPNGBytes()
 	if err != nil {
@@ -170,10 +189,13 @@ func (c *Canvas) ToDataURL() string {
 	return "data:image/png;base64," + base64.StdEncoding.EncodeToString(b)
 }
 
+// ToRGB565 converts the Canvas RGBA pixels into packed RGB565 bytes using the
+// specified endianness (big-endian if bigEndian is true, little-endian otherwise).
 func (c *Canvas) ToRGB565(bigEndian bool) []byte {
 	return Rgba2Rgb565(c.Img.Pix, c.Width*c.Height, bigEndian)
 }
 
+// contextState stores a snapshot of Context2D styling attributes for Save/Restore.
 type contextState struct {
 	FillStyle                string
 	Font                     string
@@ -182,6 +204,8 @@ type contextState struct {
 	GlobalCompositeOperation string
 }
 
+// Context2D provides an HTML5 Canvas 2D-like drawing API for rendering solid
+// rectangles, scaled images, and aligned text onto a Canvas.
 type Context2D struct {
 	Canvas                   *Canvas
 	FillStyle                string
@@ -192,6 +216,7 @@ type Context2D struct {
 	stack                    []contextState
 }
 
+// Save pushes the current Context2D styling attributes onto the state stack.
 func (ctx *Context2D) Save() {
 	ctx.stack = append(ctx.stack, contextState{
 		FillStyle:                ctx.FillStyle,
@@ -202,6 +227,8 @@ func (ctx *Context2D) Save() {
 	})
 }
 
+// Restore pops the most recently saved styling attributes from the state stack,
+// or does nothing if the stack is empty.
 func (ctx *Context2D) Restore() {
 	if len(ctx.stack) == 0 {
 		return
@@ -215,6 +242,8 @@ func (ctx *Context2D) Restore() {
 	ctx.GlobalCompositeOperation = top.GlobalCompositeOperation
 }
 
+// FillRect fills the rectangle at (x, y) with dimensions (width, height) using
+// the current FillStyle color, clipped to the Canvas bounds.
 func (ctx *Context2D) FillRect(x, y, width, height float64) {
 	r, g, b := config.ColorToRGBBytes(ctx.FillStyle)
 	col := color.RGBA{R: r, G: g, B: b, A: 255}
@@ -225,6 +254,8 @@ func (ctx *Context2D) FillRect(x, y, width, height float64) {
 	draw.Draw(ctx.Canvas.Img, rect, &image.Uniform{C: col}, image.Point{}, draw.Src)
 }
 
+// DrawImage scales src to (dw, dh) using bilinear interpolation (caching the
+// scaled RGBA result) and alpha-composites it onto the Canvas at (dx, dy).
 func (ctx *Context2D) DrawImage(src image.Image, dx, dy, dw, dh float64) {
 	if src == nil {
 		return
@@ -252,6 +283,8 @@ func (ctx *Context2D) DrawImage(src image.Image, dx, dy, dw, dh float64) {
 	draw.Draw(ctx.Canvas.Img, dstRect, scaled, image.Point{}, draw.Over)
 }
 
+// FillText renders text at (x, y) using the current Font, FillStyle, TextAlign,
+// and TextBaseline properties.
 func (ctx *Context2D) FillText(text string, x, y float64) {
 	if text == "" {
 		return
@@ -324,4 +357,3 @@ func (ctx *Context2D) FillText(text string, x, y float64) {
 	}
 	d.DrawString(text)
 }
-

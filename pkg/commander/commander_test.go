@@ -1,3 +1,5 @@
+// Package commander_test contains integration and unit tests for the
+// commander, config, interfaces, device, and emulator packages.
 package commander_test
 
 import (
@@ -18,6 +20,8 @@ import (
 	"gitlab.com/keckxde/loupedeck-commander-go/pkg/interfaces"
 )
 
+// resolveTestRepoRoot locates the repository root containing config/config.yaml
+// relative to the pkg/commander test directory.
 func resolveTestRepoRoot(t *testing.T) string {
 	t.Helper()
 	abs, err := filepath.Abs("../..")
@@ -30,6 +34,8 @@ func resolveTestRepoRoot(t *testing.T) string {
 	return abs
 }
 
+// TestUtilsAndColorHelpers verifies value wrap-around arithmetic, color
+// inversion/darkening, and template formatting helpers in pkg/config.
 func TestUtilsAndColorHelpers(t *testing.T) {
 	if got := config.CalcDelta(95, 10, 0, 100); got != 0 {
 		t.Fatalf("expected CalcDelta overflow to wrap to 0, got %v", got)
@@ -49,6 +55,8 @@ func TestUtilsAndColorHelpers(t *testing.T) {
 	}
 }
 
+// TestConfigValidatorAndAutoFix verifies validation of config/config.yaml and
+// automatic repair of legacy profile structures via config.AutoFixProfileData.
 func TestConfigValidatorAndAutoFix(t *testing.T) {
 	repoRoot := resolveTestRepoRoot(t)
 	report := config.ValidateAppConfigFile("config/config.yaml", repoRoot)
@@ -83,6 +91,8 @@ func TestConfigValidatorAndAutoFix(t *testing.T) {
 	}
 }
 
+// TestShellAndHttpSanitization verifies that shell metacharacters are stripped
+// from template-substituted values during dry-run command execution.
 func TestShellAndHttpSanitization(t *testing.T) {
 	var lastActivity interfaces.ActivityEntry
 	sh := interfaces.NewSHELLif()
@@ -110,6 +120,9 @@ func TestShellAndHttpSanitization(t *testing.T) {
 	}
 }
 
+// TestHandlerProfileSwitchingAndOPCUASubscriptionUpdate tests profile LED
+// initialization, simulated OPC UA node updates, screen rendering updates, and
+// physical button profile switching against an emulated device.
 func TestHandlerProfileSwitchingAndOPCUASubscriptionUpdate(t *testing.T) {
 	repoRoot := resolveTestRepoRoot(t)
 	cfgPath := filepath.Join(repoRoot, "config/config.yaml")
@@ -181,6 +194,8 @@ func TestHandlerProfileSwitchingAndOPCUASubscriptionUpdate(t *testing.T) {
 	}
 }
 
+// TestEmulatorServerEndpoints starts the emulator HTTP server on an ephemeral
+// port and verifies GET /api/state and POST /api/opcua/simulate behavior.
 func TestEmulatorServerEndpoints(t *testing.T) {
 	repoRoot := resolveTestRepoRoot(t)
 	dryRun := true
@@ -241,6 +256,8 @@ func TestEmulatorServerEndpoints(t *testing.T) {
 	}
 }
 
+// TestLiveOPCUAConnectionAndSessionReuse exercises live OPC UA connection,
+// write calls, and session reuse across re-Init when localhost:4840 is reachable.
 func TestLiveOPCUAConnectionAndSessionReuse(t *testing.T) {
 	conn, err := net.DialTimeout("tcp", "localhost:4840", 200*time.Millisecond)
 	if err != nil {
@@ -287,6 +304,9 @@ func TestLiveOPCUAConnectionAndSessionReuse(t *testing.T) {
 	}
 }
 
+// mockPhysicalDevice is an in-memory thread-safe implementation of
+// device.Device used to test hybrid-mode synchronization without real USB/serial
+// hardware.
 type mockPhysicalDevice struct {
 	mu           sync.RWMutex
 	connected    bool
@@ -301,6 +321,8 @@ type mockPhysicalDevice struct {
 	knobs        []string
 }
 
+// newMockPhysicalDevice constructs a mockPhysicalDevice configured with
+// Loupedeck Live display dimensions, buttons, and knobs.
 func newMockPhysicalDevice() *mockPhysicalDevice {
 	return &mockPhysicalDevice{
 		buttonColors: make(map[string]string),
@@ -316,21 +338,42 @@ func newMockPhysicalDevice() *mockPhysicalDevice {
 	}
 }
 
-func (m *mockPhysicalDevice) GetType() string                     { return "Loupedeck Live" }
-func (m *mockPhysicalDevice) GetModel() string                    { return "live" }
-func (m *mockPhysicalDevice) GetRows() int                        { return 3 }
-func (m *mockPhysicalDevice) GetColumns() int                     { return 4 }
-func (m *mockPhysicalDevice) GetKeySize() int                     { return 90 }
-func (m *mockPhysicalDevice) GetVisibleX() [2]int                 { return [2]int{0, 480} }
+// GetType returns the mock device's human-readable model name.
+func (m *mockPhysicalDevice) GetType() string { return "Loupedeck Live" }
+
+// GetModel returns the mock device's short model identifier.
+func (m *mockPhysicalDevice) GetModel() string { return "live" }
+
+// GetRows returns the number of rows in the mock center touch grid.
+func (m *mockPhysicalDevice) GetRows() int { return 3 }
+
+// GetColumns returns the number of columns in the mock center touch grid.
+func (m *mockPhysicalDevice) GetColumns() int { return 4 }
+
+// GetKeySize returns the pixel dimension of each square touch tile.
+func (m *mockPhysicalDevice) GetKeySize() int { return 90 }
+
+// GetVisibleX returns the horizontal visible display range in pixels.
+func (m *mockPhysicalDevice) GetVisibleX() [2]int { return [2]int{0, 480} }
+
+// GetDisplays returns the mock device's display definitions.
 func (m *mockPhysicalDevice) GetDisplays() map[string]device.DisplayInfo { return m.displays }
-func (m *mockPhysicalDevice) GetButtons() []interface{}           { return m.buttons }
-func (m *mockPhysicalDevice) GetKnobs() []string                  { return m.knobs }
+
+// GetButtons returns the supported physical button identifiers.
+func (m *mockPhysicalDevice) GetButtons() []interface{} { return m.buttons }
+
+// GetKnobs returns the supported rotary knob identifiers.
+func (m *mockPhysicalDevice) GetKnobs() []string { return m.knobs }
+
+// Connect marks the mock physical device as connected.
 func (m *mockPhysicalDevice) Connect() error {
 	m.mu.Lock()
 	m.connected = true
 	m.mu.Unlock()
 	return nil
 }
+
+// Close marks the mock physical device as disconnected and closed.
 func (m *mockPhysicalDevice) Close() error {
 	m.mu.Lock()
 	m.connected = false
@@ -338,24 +381,33 @@ func (m *mockPhysicalDevice) Close() error {
 	m.mu.Unlock()
 	return nil
 }
+
+// SetBrightness records the latest brightness value on the mock device.
 func (m *mockPhysicalDevice) SetBrightness(value float64) error {
 	m.mu.Lock()
 	m.brightness = value
 	m.mu.Unlock()
 	return nil
 }
+
+// Vibrate appends pattern to the recorded vibration history on the mock device.
 func (m *mockPhysicalDevice) Vibrate(pattern byte) error {
 	m.mu.Lock()
 	m.vibrations = append(m.vibrations, pattern)
 	m.mu.Unlock()
 	return nil
 }
+
+// SetButtonColor records the LED color string for physical button id.
 func (m *mockPhysicalDevice) SetButtonColor(id interface{}, color string) error {
 	m.mu.Lock()
 	m.buttonColors[config.ToString(id)] = color
 	m.mu.Unlock()
 	return nil
 }
+
+// DrawScreen invokes drawCallback on an offscreen canvas and stores the
+// resulting PNG data URL and draw count for screenName.
 func (m *mockPhysicalDevice) DrawScreen(screenName string, drawCallback func(ctx *device.Context2D) error) error {
 	dim, ok := m.displays[screenName]
 	if !ok {
@@ -377,12 +429,17 @@ func (m *mockPhysicalDevice) DrawScreen(screenName string, drawCallback func(ctx
 	m.mu.Unlock()
 	return nil
 }
+
+// GetScreenDataURL returns the last rendered data URL for screenName.
 func (m *mockPhysicalDevice) GetScreenDataURL(screenName string) string {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.screenData[screenName]
 }
 
+// TestHybridModePhysicalAndEmulatedSync verifies that hybrid mode keeps
+// emulated and physical devices synchronized across initial rendering,
+// brightness, haptics, button-triggered profile switches, and hardware detach.
 func TestHybridModePhysicalAndEmulatedSync(t *testing.T) {
 	repoRoot := resolveTestRepoRoot(t)
 	mockHW := newMockPhysicalDevice()
@@ -523,4 +580,3 @@ func TestHybridModePhysicalAndEmulatedSync(t *testing.T) {
 		t.Fatalf("unexpected GetType() without hardware: %q", gotType)
 	}
 }
-

@@ -17,8 +17,13 @@ import (
 	"gitlab.com/keckxde/loupedeck-commander-go/pkg/config"
 )
 
+// nodeIDRegex matches standard OPC UA node ID strings in the form
+// `ns=<index>;<s|i|b|g>=<identifier>`.
 var nodeIDRegex = regexp.MustCompile(`^ns=\d+;[sibg]=.*$`)
 
+// SubscriptionMapping binds a monitored OPC UA node to a specific control
+// element (touch field, knob, or button) and attribute ("nodeid", "opcua", or
+// "blink") in a Loupedeck profile.
 type SubscriptionMapping struct {
 	Field      string `json:"field,omitempty"`
 	ButtonID   int    `json:"buttonID"`
@@ -26,12 +31,16 @@ type SubscriptionMapping struct {
 	Attribute  string `json:"attribute"`
 }
 
+// OPCUANodeSnapshot captures the current cached or simulated value and all
+// associated control mappings for a single monitored OPC UA node.
 type OPCUANodeSnapshot struct {
 	NodeID   string                `json:"nodeId"`
 	Value    interface{}           `json:"value"`
 	Mappings []SubscriptionMapping `json:"mappings"`
 }
 
+// OPCUASubscriptionsSnapshot represents a point-in-time view of the OPC UA
+// interface connection state, dry-run mode, and all monitored nodes.
 type OPCUASubscriptionsSnapshot struct {
 	EndpointURL string              `json:"endpointUrl"`
 	Connected   bool                `json:"connected"`
@@ -39,6 +48,17 @@ type OPCUASubscriptionsSnapshot struct {
 	Nodes       []OPCUANodeSnapshot `json:"nodes"`
 }
 
+// OPCUAIf manages an OPC UA client session, node subscriptions, data-change
+// notifications, and typed node writes.
+//
+// Concurrency and lifecycle:
+//   - Subscription metadata, cached/simulated values, type cache, and handle
+//     lookups are synchronized via subMu.
+//   - The active gopcua client, subscription, and lifecycle context are guarded
+//     by clientMu, while connected and nextHdl use atomic operations.
+//   - Session establishment runs asynchronously with automatic retry in
+//     connectAndSubscribeLoop; Init may reuse an existing connected session when
+//     the endpoint URL is unchanged.
 type OPCUAIf struct {
 	BaseIf
 	subMu                  sync.RWMutex
@@ -61,6 +81,8 @@ type OPCUAIf struct {
 	nextHdl   atomic.Uint32
 }
 
+// NewOPCUAIf creates and returns an initialized OPCUAIf with empty subscription,
+// simulated-value, data-type, and handle-lookup maps.
 func NewOPCUAIf() *OPCUAIf {
 	return &OPCUAIf{
 		desiredSubscriptions: make(map[string][]SubscriptionMapping),
@@ -70,16 +92,22 @@ func NewOPCUAIf() *OPCUAIf {
 	}
 }
 
+// IsNodeID reports whether nodeID matches the OPC UA node ID syntax
+// (`ns=<namespace>;<s|i|b|g>=<identifier>`).
 func (o *OPCUAIf) IsNodeID(nodeID string) bool {
 	return nodeIDRegex.MatchString(nodeID)
 }
 
+// SetOnMonitoredItemChanged registers fn as the callback invoked whenever a
+// monitored OPC UA node (or simulated node value) changes. It acquires BaseIf.Mu.
 func (o *OPCUAIf) SetOnMonitoredItemChanged(fn MonitoredItemChangedFunc) {
 	o.Mu.Lock()
 	defer o.Mu.Unlock()
 	o.OnMonitoredItemChanged = fn
 }
 
+// emitMonitoredChanged safely reads OnMonitoredItemChanged under BaseIf.Mu and
+// invokes it outside the lock if non-nil.
 func (o *OPCUAIf) emitMonitoredChanged(buttonID, attribute, nodeID string, value interface{}, field string) {
 	o.Mu.RLock()
 	fn := o.OnMonitoredItemChanged
@@ -89,6 +117,9 @@ func (o *OPCUAIf) emitMonitoredChanged(buttonID, attribute, nodeID string, value
 	}
 }
 
+// GetSubscriptionsSnapshot returns a thread-safe deep copy of the configured
+// OPC UA endpoint, connection and dry-run status, and ordered monitored nodes
+// with their latest cached or simulated values and control mappings.
 func (o *OPCUAIf) GetSubscriptionsSnapshot() OPCUASubscriptionsSnapshot {
 	o.subMu.RLock()
 	defer o.subMu.RUnlock()
@@ -116,6 +147,10 @@ func (o *OPCUAIf) GetSubscriptionsSnapshot() OPCUASubscriptionsSnapshot {
 	}
 }
 
+// SimulateNodeValue injects value for nodeID into the simulated-value cache,
+// notifies all subscribed control mappings via OnMonitoredItemChanged, emits a
+// simulated "opcua-sub" ActivityEntry, and returns a slice of formatted target
+// labels (e.g. "field.button:attribute") that received the update.
 func (o *OPCUAIf) SimulateNodeValue(nodeID string, value interface{}) []string {
 	o.subMu.Lock()
 	o.simulatedValues[nodeID] = value
@@ -159,6 +194,10 @@ func (o *OPCUAIf) SimulateNodeValue(nodeID string, value interface{}) []string {
 	return pushedTo
 }
 
+// SetDryRun enables or disables dry-run mode for the OPC UA interface.
+// Switching into dry-run mode disconnects any active OPC UA session. Switching
+// out of dry-run mode when an endpoint URL is configured starts an asynchronous
+// connection and subscription loop and waits up to 250ms for initial readiness.
 func (o *OPCUAIf) SetDryRun(enabled bool) {
 	wasDry := o.GetDryRun()
 	o.BaseIf.SetDryRun(enabled)
@@ -188,6 +227,9 @@ func (o *OPCUAIf) SetDryRun(enabled bool) {
 	}
 }
 
+// cancelSubscriptionOnly cancels the active context and tears down the current
+// OPC UA subscription (with a 1-second timeout) while keeping the underlying
+// OPC UA client session alive for reuse.
 func (o *OPCUAIf) cancelSubscriptionOnly() {
 	o.clientMu.Lock()
 	defer o.clientMu.Unlock()
@@ -203,6 +245,21 @@ func (o *OPCUAIf) cancelSubscriptionOnly() {
 	}
 }
 
+// Init configures the OPC UA interface from profile parameters in options and
+// collects all monitored node subscriptions declared in prof.
+//
+// Behavior and lifecycle:
+//   - Requires "endpointurl" in options; logs an error and returns early if missing.
+//   - Reads optional "publishingInterval" (default 250ms) and "samplingInterval"
+//     (default 100ms).
+//   - If already connected in live mode to the same endpoint URL, reuses the
+//     existing client session and re-registers subscriptions; otherwise
+//     disconnects any prior session.
+//   - Re-emits any previously cached/simulated values for matching nodes so UI
+//     states persist across profile switches.
+//   - In dry-run mode, logs initialization without connecting. In live mode,
+//     starts connectAndSubscribeLoop (or registerAllSubscriptions when reusing
+//     a session) and waits up to 250ms for initial readiness.
 func (o *OPCUAIf) Init(options map[string]interface{}, prof *config.Profile) {
 	if options == nil {
 		o.LogError("OPCUAIf: Missing endpointurl in options => Skipping OPCUA init\n")
@@ -288,6 +345,10 @@ func (o *OPCUAIf) Init(options map[string]interface{}, prof *config.Profile) {
 	}
 }
 
+// collectProfileSubscriptions scans all touch areas ("center", "left", "right"),
+// "knobs", and "buttons" in prof in deterministic key order, expands node ID
+// templates using baseOptions, and records valid OPC UA node IDs found in
+// element params ("nodeid", "blink") and states ("opcua", "blink").
 func (o *OPCUAIf) collectProfileSubscriptions(baseOptions map[string]interface{}, prof *config.Profile) {
 	if prof == nil {
 		return
@@ -349,6 +410,9 @@ func (o *OPCUAIf) collectProfileSubscriptions(baseOptions map[string]interface{}
 	}
 }
 
+// addDesiredSubscription registers a SubscriptionMapping for nodeID under
+// subMu, preserving insertion order in desiredOrder and deduplicating identical
+// (field, buttonName, attribute) tuples.
 func (o *OPCUAIf) addDesiredSubscription(nodeID string, buttonIndex int, buttonName, attribute, field string) {
 	o.subMu.Lock()
 	defer o.subMu.Unlock()
@@ -369,6 +433,11 @@ func (o *OPCUAIf) addDesiredSubscription(nodeID string, buttonIndex int, buttonN
 	})
 }
 
+// connectAndSubscribeLoop discovers endpoints at endpointURL, establishes an
+// anonymous OPC UA client session with auto-reconnect enabled, and registers all
+// desired subscriptions. On connection failure, it closes readyCh on the first
+// attempt and retries every 5 seconds until ctx is cancelled or connection
+// succeeds.
 func (o *OPCUAIf) connectAndSubscribeLoop(ctx context.Context, endpointURL string, readyCh chan struct{}) {
 	var readyOnce sync.Once
 	notifyReady := func() {
@@ -454,6 +523,11 @@ func (o *OPCUAIf) connectAndSubscribeLoop(ctx context.Context, endpointURL strin
 	}
 }
 
+// registerAllSubscriptions creates an OPC UA subscription on client using the
+// configured publishing interval (defaulting to 250ms), monitors all valid node
+// IDs in desiredOrder, and spawns a background goroutine bound to ctx that
+// processes DataChangeNotification messages, caches node data types and values,
+// and dispatches updates to OnMonitoredItemChanged.
 func (o *OPCUAIf) registerAllSubscriptions(ctx context.Context, client *opcua.Client) {
 	notifyCh := make(chan *opcua.PublishNotificationData, 256)
 	o.subMu.RLock()
@@ -552,6 +626,10 @@ func (o *OPCUAIf) registerAllSubscriptions(ctx context.Context, client *opcua.Cl
 	}()
 }
 
+// Disconnect cancels the active subscription context, cancels any active OPC UA
+// subscription, and closes the OPC UA client connection under clientMu (each
+// with a 2-second timeout), marking the interface disconnected. It always
+// returns nil.
 func (o *OPCUAIf) Disconnect() error {
 	o.clientMu.Lock()
 	defer o.clientMu.Unlock()
@@ -576,12 +654,17 @@ func (o *OPCUAIf) Disconnect() error {
 	return nil
 }
 
+// Stop disconnects the OPC UA client, logs shutdown, and returns nil.
 func (o *OPCUAIf) Stop() error {
 	_ = o.Disconnect()
 	o.LogInfo("OPCUAIf Stopped\n")
 	return nil
 }
 
+// Check validates that options contains all mandatory BaseIf parameters as well
+// as the OPC UA-specific "endpointurl", "nodeid", and "value" keys. It returns
+// 0 on success, the BaseIf error code on base validation failure, or -11, -12,
+// or -13 when "endpointurl", "nodeid", or "value" is missing respectively.
 func (o *OPCUAIf) Check(options map[string]interface{}) int {
 	res := o.BaseIf.Check(options)
 	if res < 0 {
@@ -603,6 +686,20 @@ func (o *OPCUAIf) Check(options map[string]interface{}) int {
 	return 0
 }
 
+// Call formats opcuaNode and options["value"] (when a string) and writes the
+// resulting value to the target OPC UA node, or records a simulated write when
+// dry-run mode is enabled.
+//
+// In live mode, Call requires an active client connection; if the node's OPC UA
+// data type is not yet cached in o.types, it performs an initial AttributeIDValue
+// read (with a 5-second request timeout) to infer and cache the target TypeID
+// before converting the value via convertVariant and issuing a WriteRequest.
+//
+// Call emits an ActivityEntry for validation errors, simulated writes,
+// disconnected clients, data-type lookup failures, and write attempts. It
+// returns ("waiting", nil) after simulated writes or executed write requests,
+// (false, err) on node ID parsing or variant conversion errors, and (false, nil)
+// on validation, connection, or data-type resolution failures.
 func (o *OPCUAIf) Call(opcuaNode string, options map[string]interface{}) (interface{}, error) {
 	res := o.Check(options)
 	dryRun := o.GetDryRun()
@@ -765,6 +862,11 @@ func (o *OPCUAIf) Call(opcuaNode string, options map[string]interface{}) (interf
 	return "waiting", nil
 }
 
+// convertVariant coerces value to the Go type corresponding to targetType
+// (supporting Boolean, SByte, Byte, Int16..Uint64, Float, Double, and String,
+// with string fallback for unrecognized types) and wraps it in a *ua.Variant.
+// It returns the constructed variant, the converted Go value, and any variant
+// construction error.
 func convertVariant(value interface{}, targetType ua.TypeID) (*ua.Variant, interface{}, error) {
 	valStr := config.ToString(value)
 	switch targetType {

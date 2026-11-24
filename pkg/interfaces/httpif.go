@@ -10,11 +10,15 @@ import (
 	"gitlab.com/keckxde/loupedeck-commander-go/pkg/config"
 )
 
+// HTTPif implements an HTTP GET action backend built on BaseIf and an
+// underlying net/http.Client.
 type HTTPif struct {
 	BaseIf
 	Client *http.Client
 }
 
+// NewHTTPif creates a new HTTPif instance configured with a default
+// http.Client using a 10-second request timeout.
 func NewHTTPif() *HTTPif {
 	return &HTTPif{
 		Client: &http.Client{
@@ -23,6 +27,10 @@ func NewHTTPif() *HTTPif {
 	}
 }
 
+// Check validates that options contains all mandatory BaseIf parameters as well
+// as the HTTP-specific "hostname" parameter. It returns 0 on success, the
+// BaseIf error code on base validation failure, or -21 if "hostname" is
+// missing.
 func (h *HTTPif) Check(options map[string]interface{}) int {
 	res := h.BaseIf.Check(options)
 	if res < 0 {
@@ -36,11 +44,22 @@ func (h *HTTPif) Check(options map[string]interface{}) int {
 	return 0
 }
 
+// Stop logs shutdown of the HTTP interface and returns nil.
 func (h *HTTPif) Stop() error {
 	h.LogInfo("HTTPif: Stopped\n")
 	return nil
 }
 
+// Call formats the template url1 using options, validates the resulting URL
+// (requiring non-empty scheme and host), and performs an HTTP GET request via
+// h.Client unless dry-run mode is enabled. If "username" or "password" options
+// are non-empty, HTTP Basic Authentication is attached to the request.
+//
+// Activity entries are emitted for validation errors, simulated runs, request
+// failures, non-200 status codes, and successful HTTP 200 OK responses. Call
+// returns (true, nil) when simulated or when the server responds with HTTP 200
+// OK, and (false, err) on validation, URL parsing, request construction, or
+// transport errors (or (false, nil) on Check failure or non-200 status).
 func (h *HTTPif) Call(url1 string, options map[string]interface{}) (bool, error) {
 	res := h.Check(options)
 	dryRun := h.GetDryRun()

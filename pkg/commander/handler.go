@@ -1,3 +1,6 @@
+// Package commander implements the Loupedeck device orchestration layer,
+// managing button fields, multi-state buttons, profile switching, hardware/emulated/hybrid
+// device lifecycles, display rendering loops, and external interface dispatching.
 package commander
 
 import (
@@ -14,6 +17,9 @@ import (
 	"gitlab.com/keckxde/loupedeck-commander-go/pkg/interfaces"
 )
 
+// LayoutCompatibility describes how the configured primary device and grid
+// layout compare to the currently connected Loupedeck device, including
+// effective grid dimensions and any layout/display mismatch warnings.
 type LayoutCompatibility struct {
 	MatchesPrimaryDevice bool     `json:"matchesPrimaryDevice"`
 	PrimaryDevice        string   `json:"primaryDevice"`
@@ -29,6 +35,9 @@ type LayoutCompatibility struct {
 	Warnings             []string `json:"warnings"`
 }
 
+// HandlerOptions configures device selection, emulation/hybrid modes,
+// reconnection behavior, dry-run execution, and activity reporting for
+// NewBaseLoupeDeckHandler.
 type HandlerOptions struct {
 	Device             device.Device
 	HardwareDevice     device.Device
@@ -44,6 +53,10 @@ type HandlerOptions struct {
 	ActivityEmitter    interfaces.ActivityEmitter
 }
 
+// BaseLoupeDeckHandler coordinates device connections (hardware, emulated, or
+// hybrid), configuration loading, profile activation, touchscreen/LED rendering,
+// input routing, and external interface integrations (Shell, HTTP, OPC UA).
+// Concurrent access is guarded by Mu, activateMu, and updateMu.
 type BaseLoupeDeckHandler struct {
 	Mu                  sync.RWMutex
 	Device              device.Device
@@ -81,6 +94,10 @@ type BaseLoupeDeckHandler struct {
 	OnStateChange              func()
 }
 
+// NewBaseLoupeDeckHandler creates a BaseLoupeDeckHandler, loads configFile
+// (returning an error if loading fails unless opts.AllowInvalidConfig is true),
+// configures the target device (hybrid, provided, or emulated), and wires OPC UA
+// monitored item and profile event callbacks.
 func NewBaseLoupeDeckHandler(configFile string, opts HandlerOptions) (*BaseLoupeDeckHandler, error) {
 	fmt.Printf("INIT with config %s\n", configFile)
 
@@ -180,6 +197,9 @@ func NewBaseLoupeDeckHandler(configFile string, opts HandlerOptions) (*BaseLoupe
 	return h, nil
 }
 
+// handleProfileEvent dispatches internal profile events emitted by buttons or
+// interfaces: "profileChanged" (switching or resyncing profiles),
+// "brightnessChanged" (normalizing percentage values > 1.0), and "vibrate".
 func (h *BaseLoupeDeckHandler) handleProfileEvent(evt interfaces.ProfileEvent) {
 	switch evt.Type {
 	case "profileChanged":
@@ -211,6 +231,9 @@ func (h *BaseLoupeDeckHandler) handleProfileEvent(evt interfaces.ProfileEvent) {
 	}
 }
 
+// parseVibratePattern converts val (byte, numeric, named device.HAPTIC key,
+// hex "0x..." string, or decimal string) into a Loupedeck haptic pattern byte,
+// defaulting to device.HAPTIC["SHORT"].
 func parseVibratePattern(val interface{}) byte {
 	switch v := val.(type) {
 	case byte:
@@ -236,6 +259,8 @@ func parseVibratePattern(val interface{}) byte {
 	return device.HAPTIC["SHORT"]
 }
 
+// LoadConfig reads and parses an ApplicationConfig from fileName using
+// h.BaseDir, stores it in h.AppConfig, and returns whether loading succeeded.
 func (h *BaseLoupeDeckHandler) LoadConfig(fileName string) bool {
 	fmt.Printf("Loading Config File %s\n", fileName)
 	appCfg := config.NewApplicationConfig()
@@ -247,6 +272,10 @@ func (h *BaseLoupeDeckHandler) LoadConfig(fileName string) bool {
 	return ok
 }
 
+// Start clears the Stopping flag and initiates device connections according to
+// the configured mode: hybrid (connecting both emulated and hardware devices, or
+// starting auto-discovery if no hardware device was pre-supplied), emulated,
+// pre-supplied Device, or background hardware discovery via connectToDeviceLoop.
 func (h *BaseLoupeDeckHandler) Start() error {
 	h.Mu.Lock()
 	h.Stopping = false
@@ -298,6 +327,8 @@ func (h *BaseLoupeDeckHandler) Start() error {
 	return nil
 }
 
+// attachEmulatedListeners binds connection and input callbacks on emu to the
+// corresponding handler methods.
 func (h *BaseLoupeDeckHandler) attachEmulatedListeners(emu *device.EmulatedLoupedeckDevice) {
 	emu.OnConnect = func(address string) {
 		h.OnConnected(address)
@@ -322,6 +353,8 @@ func (h *BaseLoupeDeckHandler) attachEmulatedListeners(emu *device.EmulatedLoupe
 	}
 }
 
+// attachHardwareListeners binds connection, input, screen-update, state-change,
+// and disconnect callbacks on hw to the handler.
 func (h *BaseLoupeDeckHandler) attachHardwareListeners(hw *device.HardwareLoupedeckDevice) {
 	hw.OnConnect = func(address string) {
 		h.OnConnected(address)
@@ -373,6 +406,10 @@ func (h *BaseLoupeDeckHandler) attachHardwareListeners(hw *device.HardwareLouped
 	}
 }
 
+// onHardwareDisconnect handles unexpected hardware disconnection. In hybrid
+// mode it detaches only the hardware device so the emulator stays active;
+// otherwise it stops the screen ticker and clears h.Device. When AutoReconnect
+// is enabled and the handler is not stopping, it spawns connectToDeviceLoop.
 func (h *BaseLoupeDeckHandler) onHardwareDisconnect(err error) {
 	h.Mu.Lock()
 	if h.Stopping {
@@ -414,6 +451,10 @@ func (h *BaseLoupeDeckHandler) onHardwareDisconnect(err error) {
 	}
 }
 
+// connectToDeviceLoop periodically discovers Loupedeck serial devices every
+// ReconnectDelayMs and attempts to connect a matching candidate port (attaching
+// it to HybridDevice in hybrid mode or as h.Device otherwise) until connection
+// succeeds or stopCh/Stopping signals shutdown.
 func (h *BaseLoupeDeckHandler) connectToDeviceLoop() {
 	h.Mu.Lock()
 	h.reconnecting = true
@@ -483,6 +524,9 @@ func (h *BaseLoupeDeckHandler) connectToDeviceLoop() {
 	}
 }
 
+// selectCandidatePort chooses the best matching port from list based on the
+// configured layout Path, SerialNumber, or DeviceID USB product IDs, falling
+// back to list[0] if no specific preference matches.
 func (h *BaseLoupeDeckHandler) selectCandidatePort(list []device.DiscoveredPort) device.DiscoveredPort {
 	h.Mu.RLock()
 	appCfg := h.AppConfig
@@ -518,6 +562,9 @@ func (h *BaseLoupeDeckHandler) selectCandidatePort(list []device.DiscoveredPort)
 	return list[0]
 }
 
+// Stop gracefully shuts down the handler once, signaling stopCh and
+// tickerStopCh, turning off brightness and closing the active device, stopping
+// external interfaces, and exiting the process if ExitOnStop is set.
 func (h *BaseLoupeDeckHandler) Stop() error {
 	h.Mu.Lock()
 	if h.Stopping {
@@ -554,6 +601,8 @@ func (h *BaseLoupeDeckHandler) Stop() error {
 	return nil
 }
 
+// Vibrate sends the specified haptic feedback pattern to the active device, or
+// returns nil if no device is currently attached.
 func (h *BaseLoupeDeckHandler) Vibrate(pattern byte) error {
 	fmt.Printf("Vibrate with pattern %d\n", pattern)
 	h.Mu.RLock()
@@ -565,6 +614,8 @@ func (h *BaseLoupeDeckHandler) Vibrate(pattern byte) error {
 	return dev.Vibrate(pattern)
 }
 
+// ChangeBrightness clamps brightness to [0, 1], stores it on the handler, and
+// forwards the value to the active device if one is attached.
 func (h *BaseLoupeDeckHandler) ChangeBrightness(brightness float64) error {
 	norm := math.Max(0, math.Min(1, brightness))
 	fmt.Printf("Change Brightness to %v\n", norm)
@@ -578,6 +629,8 @@ func (h *BaseLoupeDeckHandler) ChangeBrightness(brightness float64) error {
 	return dev.SetBrightness(norm)
 }
 
+// syncProfileButtonsState synchronizes physical profile-selection buttons in
+// h.Buttons with h.CurrentProfile.
 func (h *BaseLoupeDeckHandler) syncProfileButtonsState() {
 	h.Mu.RLock()
 	btns := h.Buttons
@@ -588,6 +641,8 @@ func (h *BaseLoupeDeckHandler) syncProfileButtonsState() {
 	}
 }
 
+// GetCurrentProfile returns the active *config.Profile in a thread-safe manner,
+// or nil if no configuration is loaded or CurrentProfile is out of range.
 func (h *BaseLoupeDeckHandler) GetCurrentProfile() *config.Profile {
 	h.Mu.RLock()
 	defer h.Mu.RUnlock()
@@ -597,6 +652,9 @@ func (h *BaseLoupeDeckHandler) GetCurrentProfile() *config.Profile {
 	return h.AppConfig.Profiles[h.CurrentProfile]
 }
 
+// evaluateDeviceAndLayout compares the configured profile/application layout
+// against dev, computes effective grid dimensions and mismatch warnings, stores
+// the resulting LayoutCompatibility on the handler, and returns it.
 func (h *BaseLoupeDeckHandler) evaluateDeviceAndLayout(dev device.Device, prof *config.Profile) LayoutCompatibility {
 	h.Mu.RLock()
 	appCfg := h.AppConfig
@@ -733,6 +791,11 @@ func (h *BaseLoupeDeckHandler) evaluateDeviceAndLayout(dev device.Device, prof *
 	return compat
 }
 
+// ActivateProfile switches to profile index id (serialized by activateMu),
+// evaluates layout compatibility, builds and preloads ButtonFields for all
+// displays, knobs, and physical buttons, atomically swaps them in under
+// updateMu/Mu, renders all fields to the device, schedules a post-switch screen
+// refresh, and initializes profile-scoped external interfaces.
 func (h *BaseLoupeDeckHandler) ActivateProfile(id int) error {
 	h.activateMu.Lock()
 	defer h.activateMu.Unlock()
@@ -881,6 +944,10 @@ func (h *BaseLoupeDeckHandler) ActivateProfile(id int) error {
 	return nil
 }
 
+// OnConnected runs post-connection initialization when a device connects at
+// address: updates hybrid hardware status, restores brightness, activates the
+// active profile, triggers a startup haptic pulse, starts the 50 ms screen
+// refresh ticker goroutine, and invokes OnStateChange.
 func (h *BaseLoupeDeckHandler) OnConnected(address string) {
 	h.Mu.RLock()
 	dev := h.Device
@@ -973,6 +1040,10 @@ func (h *BaseLoupeDeckHandler) OnConnected(address string) {
 	}
 }
 
+// UpdateScreens acquires updateMu non-blockingly and redraws physical button
+// LEDs and touch screens when force is true, during post-switch refresh ticks,
+// when a ButtonField is dirty, or on blink intervals (every 5 ticks for center,
+// every 20 ticks for left/right). It invokes OnStateChange if any field was drawn.
 func (h *BaseLoupeDeckHandler) UpdateScreens(force bool) {
 	if !h.updateMu.TryLock() {
 		return
@@ -1045,6 +1116,9 @@ func (h *BaseLoupeDeckHandler) UpdateScreens(force bool) {
 	}
 }
 
+// isIntegerButtonID reports whether id represents an integer physical button
+// identifier (int, int64, integral float64, or numeric string) and returns its
+// normalized decimal string representation.
 func isIntegerButtonID(id interface{}) (string, bool) {
 	switch v := id.(type) {
 	case int:
@@ -1063,6 +1137,9 @@ func isIntegerButtonID(id interface{}) (string, bool) {
 	return config.ToString(id), false
 }
 
+// OnButtonDown routes a press event for id to Buttons (if id is an integer
+// physical button ID, syncing profile button LEDs and redrawing if the active
+// profile did not change) or Knobs (for rotary encoder press IDs).
 func (h *BaseLoupeDeckHandler) OnButtonDown(id interface{}) bool {
 	idStr, isInt := isIntegerButtonID(id)
 	h.Mu.RLock()
@@ -1096,6 +1173,8 @@ func (h *BaseLoupeDeckHandler) OnButtonDown(id interface{}) bool {
 	return ok
 }
 
+// OnButtonUp routes a release event for id to Buttons (for integer physical
+// button IDs, syncing profile LEDs and redrawing) or Knobs (otherwise).
 func (h *BaseLoupeDeckHandler) OnButtonUp(id interface{}) bool {
 	idStr, isInt := isIntegerButtonID(id)
 	h.Mu.RLock()
@@ -1127,6 +1206,7 @@ func (h *BaseLoupeDeckHandler) OnButtonUp(id interface{}) bool {
 	return ok
 }
 
+// OnRotate routes a rotary encoder step delta for control id to Knobs.
 func (h *BaseLoupeDeckHandler) OnRotate(id string, delta int) bool {
 	h.Mu.RLock()
 	knobs := h.Knobs
@@ -1137,6 +1217,10 @@ func (h *BaseLoupeDeckHandler) OnRotate(id string, delta int) bool {
 	return false
 }
 
+// resolveTouchTarget resolves a hardware TouchPoint into its target screen
+// name (defaulting to "center"), mapped configuration key, and validity flag.
+// For the center screen it remaps hardware grid coordinates onto the effective
+// ButtonField layout via MapHardwareKeyToConfigKey.
 func (h *BaseLoupeDeckHandler) resolveTouchTarget(tp device.TouchPoint) (string, string, bool) {
 	screen := tp.Target.Screen
 	if screen == "" {
@@ -1159,6 +1243,8 @@ func (h *BaseLoupeDeckHandler) resolveTouchTarget(tp device.TouchPoint) (string,
 	return screen, idStr, true
 }
 
+// OnTouchStart dispatches touch-press events from evt.ChangedTouches to their
+// resolved screen ButtonFields and returns true if any button handled the press.
 func (h *BaseLoupeDeckHandler) OnTouchStart(evt device.TouchEventData) bool {
 	ok := false
 	for _, tp := range evt.ChangedTouches {
@@ -1176,6 +1262,8 @@ func (h *BaseLoupeDeckHandler) OnTouchStart(evt device.TouchEventData) bool {
 	return ok
 }
 
+// OnTouchMove dispatches touch-move coordinates from evt.ChangedTouches to
+// their resolved screen ButtonFields.
 func (h *BaseLoupeDeckHandler) OnTouchMove(evt device.TouchEventData) bool {
 	ok := false
 	for _, tp := range evt.ChangedTouches {
@@ -1193,6 +1281,8 @@ func (h *BaseLoupeDeckHandler) OnTouchMove(evt device.TouchEventData) bool {
 	return ok
 }
 
+// OnTouchEnd dispatches touch-release events from evt.ChangedTouches to their
+// resolved screen ButtonFields and returns true if any button handled the release.
 func (h *BaseLoupeDeckHandler) OnTouchEnd(evt device.TouchEventData) bool {
 	ok := false
 	for _, tp := range evt.ChangedTouches {
@@ -1210,6 +1300,9 @@ func (h *BaseLoupeDeckHandler) OnTouchEnd(evt device.TouchEventData) bool {
 	return ok
 }
 
+// ButtonStateChanged propagates an external state or attribute update (for
+// example from OPC UA monitoring) to the specified field, or across all fields
+// when field is empty, immediately redrawing physical Buttons when updated.
 func (h *BaseLoupeDeckHandler) ButtonStateChanged(buttonID, attribute, nodeid string, val interface{}, field string) bool {
 	h.Mu.RLock()
 	center := h.Screens["center"]
@@ -1243,6 +1336,9 @@ func (h *BaseLoupeDeckHandler) ButtonStateChanged(buttonID, attribute, nodeid st
 	return ok
 }
 
+// ReloadConfig reloads configuration from fileName (or the current ConfigFile
+// when empty), clamps CurrentProfile to the loaded profile range, reactivates
+// the profile, and forces a full screen redraw.
 func (h *BaseLoupeDeckHandler) ReloadConfig(fileName string) bool {
 	if fileName == "" {
 		h.Mu.RLock()
@@ -1277,6 +1373,9 @@ func (h *BaseLoupeDeckHandler) ReloadConfig(fileName string) bool {
 	return ok
 }
 
+// SetEmulatedModel switches the emulated device (or the emulated side of
+// HybridDevice in hybrid mode) to model, attaches event listeners, connects it,
+// reactivates the current profile, and forces a screen redraw.
 func (h *BaseLoupeDeckHandler) SetEmulatedModel(model string) error {
 	emu := device.NewEmulatedLoupedeckDevice(device.EmulatedDeviceOptions{Model: model})
 	h.attachEmulatedListeners(emu)
@@ -1304,6 +1403,9 @@ func (h *BaseLoupeDeckHandler) SetEmulatedModel(model string) error {
 	return nil
 }
 
+// GetSnapshot returns a thread-safe, JSON-serializable snapshot of the handler's
+// configuration, layout compatibility, profiles, button/screen states, device
+// or hybrid connection status, and OPC UA subscriptions.
 func (h *BaseLoupeDeckHandler) GetSnapshot() map[string]interface{} {
 	h.Mu.RLock()
 	cfgFile := h.ConfigFile

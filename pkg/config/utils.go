@@ -18,12 +18,16 @@ var (
 	hexColorRegex    = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
 )
 
-// FormatTemplate formats a template string with {key} placeholders matching npm `string-template`.
+// FormatTemplate formats tpl by substituting {key} placeholders from params
+// (matching npm string-template semantics) without applying a value transform.
 func FormatTemplate(tpl string, params map[string]any) string {
 	return FormatTemplateTransform(tpl, params, nil)
 }
 
-// FormatTemplateTransform formats a template string with optional per-placeholder transform.
+// FormatTemplateTransform formats tpl by substituting {key} placeholders with
+// their ToString values from params. Double-braced {{key}} sequences unescape to
+// literal key, missing or nil keys resolve to empty strings, and non-nil
+// transform callbacks post-process each substituted value.
 func FormatTemplateTransform(tpl string, params map[string]any, transform func(val, key string) string) string {
 	if tpl == "" {
 		return ""
@@ -63,7 +67,8 @@ func FormatTemplateTransform(tpl string, params map[string]any, transform func(v
 	return sb.String()
 }
 
-// ExtractPlaceholders returns all {placeholder} names from a string.
+// ExtractPlaceholders returns all {name} placeholder identifiers found in str
+// in order of appearance.
 func ExtractPlaceholders(str string) []string {
 	matches := placeholderRegex.FindAllStringSubmatch(str, -1)
 	out := make([]string, 0, len(matches))
@@ -75,7 +80,9 @@ func ExtractPlaceholders(str string) []string {
 	return out
 }
 
-// ToString converts an arbitrary value to its string representation matching JS String(val).
+// ToString converts an arbitrary value to its string representation matching
+// JavaScript String(val) semantics: nil becomes "", exact integer float64 values
+// omit trailing decimals, and other values fall back to fmt.Sprintf("%v", v).
 func ToString(v any) string {
 	if v == nil {
 		return ""
@@ -102,7 +109,9 @@ func ToString(v any) string {
 	}
 }
 
-// ToFloat converts an arbitrary value to float64 and returns whether conversion succeeded.
+// ToFloat converts numeric values and decimal or 0x/0X-prefixed hexadecimal
+// strings into float64, returning (0, false) for nil, NaN, Inf, empty strings,
+// or unparseable values.
 func ToFloat(v any) (float64, bool) {
 	if v == nil {
 		return 0, false
@@ -145,7 +154,8 @@ func ToFloat(v any) (float64, bool) {
 	}
 }
 
-// ToInt converts an arbitrary value to int and returns whether it is an integer.
+// ToInt converts an arbitrary value to int via ToFloat, returning (0, false) if
+// conversion fails or if the numeric value has a fractional component.
 func ToInt(v any) (int, bool) {
 	f, ok := ToFloat(v)
 	if !ok {
@@ -157,7 +167,7 @@ func ToInt(v any) (int, bool) {
 	return int(f), true
 }
 
-// ToFloatDefault converts v to float64 or returns def.
+// ToFloatDefault converts v to float64 via ToFloat, returning def if conversion fails.
 func ToFloatDefault(v any, def float64) float64 {
 	if f, ok := ToFloat(v); ok {
 		return f
@@ -165,7 +175,8 @@ func ToFloatDefault(v any, def float64) float64 {
 	return def
 }
 
-// ToIntDefault converts v to int or returns def.
+// ToIntDefault converts v to float64 via ToFloat and truncates it to int,
+// returning def if conversion fails.
 func ToIntDefault(v any, def int) int {
 	if f, ok := ToFloat(v); ok {
 		return int(f)
@@ -173,7 +184,8 @@ func ToIntDefault(v any, def int) int {
 	return def
 }
 
-// CalcDelta calculates the delta of a value within a range between min and max with overflow.
+// CalcDelta adds delta to data within the inclusive range [minVal, maxVal],
+// wrapping values above maxVal to minVal and values below minVal to maxVal.
 func CalcDelta(data, delta, minVal, maxVal float64) float64 {
 	res := data + delta
 	if res > maxVal {
@@ -184,7 +196,8 @@ func CalcDelta(data, delta, minVal, maxVal float64) float64 {
 	return res
 }
 
-// ColorToRGB converts a hex color (#RRGGBB) to [3]int{r, g, b}.
+// ColorToRGB parses a 6-digit hex color (#RRGGBB) into [3]int{r, g, b},
+// returning [3]int{0, 0, 0} if colorAsHex does not match #RRGGBB.
 func ColorToRGB(colorAsHex string) [3]int {
 	if !hexColorRegex.MatchString(colorAsHex) {
 		return [3]int{0, 0, 0}
@@ -197,7 +210,8 @@ func ColorToRGB(colorAsHex string) [3]int {
 
 var rgbaNumsRegex = regexp.MustCompile(`\d+`)
 
-// ColorToRGBBytes converts #RRGGBB, #RGB, or rgb()/rgba() to (r, g, b) bytes.
+// ColorToRGBBytes parses a #RRGGBB hex string or an rgb(...)/rgba(...) CSS
+// color string into (r, g, b) bytes, returning (0, 0, 0) for unrecognized inputs.
 func ColorToRGBBytes(colorStr string) (byte, byte, byte) {
 	s := strings.TrimSpace(colorStr)
 	if hexColorRegex.MatchString(s) {
@@ -216,7 +230,8 @@ func ColorToRGBBytes(colorStr string) (byte, byte, byte) {
 	return 0, 0, 0
 }
 
-// InvertColor inverts a hex color (#RRGGBB).
+// InvertColor inverts each RGB channel (255 - c) of a #RRGGBB hex color and
+// returns the result formatted as lowercase #rrggbb.
 func InvertColor(colorAsHex string) string {
 	rgb := ColorToRGB(colorAsHex)
 	for i := 0; i < 3; i++ {
@@ -231,7 +246,8 @@ func InvertColor(colorAsHex string) string {
 	return fmt.Sprintf("#%02x%02x%02x", rgb[0], rgb[1], rgb[2])
 }
 
-// DarkerColor darkens a hex color (#RRGGBB) by factor (default 0.5).
+// DarkerColor scales each RGB channel of a #RRGGBB hex color by factor
+// (clamped to [0, 255]) and returns the result formatted as lowercase #rrggbb.
 func DarkerColor(colorAsHex string, factor float64) string {
 	rgb := ColorToRGB(colorAsHex)
 	for i := 0; i < 3; i++ {
@@ -246,7 +262,8 @@ func DarkerColor(colorAsHex string, factor float64) string {
 	return fmt.Sprintf("#%02x%02x%02x", rgb[0], rgb[1], rgb[2])
 }
 
-// SyncParams copies missing keys from defaultNode into node.
+// SyncParams mutates node in place by copying any key from defaultNode that is
+// not already present in node, and returns node.
 func SyncParams(node map[string]any, defaultNode map[string]any) map[string]any {
 	if node == nil || defaultNode == nil {
 		return node
@@ -259,7 +276,8 @@ func SyncParams(node map[string]any, defaultNode map[string]any) map[string]any 
 	return node
 }
 
-// CloneMap deep-copies a map[string]any.
+// CloneMap recursively deep-copies src (including nested map[string]any, []any,
+// and []string values), returning nil if src is nil.
 func CloneMap(src map[string]any) map[string]any {
 	if src == nil {
 		return nil
@@ -271,6 +289,8 @@ func CloneMap(src map[string]any) map[string]any {
 	return out
 }
 
+// cloneValue recursively deep-copies map[string]any, []any, and []string
+// values, returning scalar values unchanged.
 func cloneValue(v any) any {
 	switch val := v.(type) {
 	case map[string]any:
@@ -290,7 +310,9 @@ func cloneValue(v any) any {
 	}
 }
 
-// CleanInternalKeys recursively returns a copy of a map without internal metadata keys ("__keys__").
+// CleanInternalKeys recursively returns a copy of src with all internal
+// "__keys__" ordering metadata entries removed from nested maps and slices,
+// returning nil if src is nil.
 func CleanInternalKeys(src map[string]any) map[string]any {
 	if src == nil {
 		return nil
@@ -320,8 +342,10 @@ func CleanInternalKeys(src map[string]any) map[string]any {
 	return out
 }
 
-// OrderedKeys returns the keys of a map in their original YAML/JSON order if available,
-// or falls back to JS-like deterministic ordering (non-negative integers ascending, then standard state names, then alphabetical).
+// OrderedKeys returns the keys of m in their original YAML/JSON declaration
+// order (from "__keys__", appending any newly added keys sorted via
+// sortKeysJSStyle), or falls back to sortKeysJSStyle when "__keys__" is absent.
+// Returns nil if m is nil.
 func OrderedKeys(m map[string]any) []string {
 	if m == nil {
 		return nil
@@ -365,6 +389,9 @@ func OrderedKeys(m map[string]any) []string {
 	return keys
 }
 
+// sortKeysJSStyle sorts keys in place using JavaScript-like deterministic
+// ordering: non-negative integer strings ascending first, then standard state
+// names ("off", "half", "on"), then remaining strings in lexicographical order.
 func sortKeysJSStyle(keys []string) {
 	statePriority := map[string]int{
 		"off":  1,
@@ -395,7 +422,11 @@ func sortKeysJSStyle(keys []string) {
 	})
 }
 
-// ParseConfigFileSafe parses a YAML, JSON, or JSON5 file without side effects.
+// ParseConfigFileSafe reads and parses a YAML, JSON, or JSON5 configuration file
+// into a map[string]any without logging side effects. For .json and .json5
+// files, JSON5 comments are stripped before decoding via yaml.Node so mapping
+// key order is preserved in "__keys__". Returns an error if the file does not
+// exist, fails to parse, is empty, or does not decode to a mapping/object.
 func ParseConfigFileSafe(filePath string) (map[string]any, error) {
 	rawBytes, err := os.ReadFile(filePath)
 	if err != nil {
@@ -427,6 +458,8 @@ func ParseConfigFileSafe(filePath string) (map[string]any, error) {
 	return obj, nil
 }
 
+// yamlNodeToValue recursively converts a yaml.Node AST into Go values,
+// preserving mapping key declaration order in "__keys__".
 func yamlNodeToValue(node *yaml.Node) any {
 	if node == nil {
 		return nil
@@ -471,7 +504,9 @@ func yamlNodeToValue(node *yaml.Node) any {
 	}
 }
 
-// stripJSON5Comments removes // and /* */ comments outside of string literals so yaml.v3 can parse JSON5 cleanly.
+// stripJSON5Comments removes // line comments and /* */ block comments outside
+// single- and double-quoted string literals while preserving line breaks inside
+// block comments so yaml.v3 can parse JSON5 cleanly with accurate line numbers.
 func stripJSON5Comments(input string) string {
 	var out strings.Builder
 	inString := false
@@ -522,7 +557,8 @@ func stripJSON5Comments(input string) string {
 	return out.String()
 }
 
-// ReadConfigFile reads a YAML or JSON/JSON5 config file, logging errors like utils.mjs.
+// ReadConfigFile reads a YAML, JSON, or JSON5 config file via
+// ParseConfigFileSafe, printing any error to os.Stderr and returning nil on failure.
 func ReadConfigFile(fileName string) map[string]any {
 	data, err := ParseConfigFileSafe(fileName)
 	if err != nil {
@@ -532,7 +568,8 @@ func ReadConfigFile(fileName string) map[string]any {
 	return data
 }
 
-// WriteJSONFile writes a map/object as pretty-printed JSON.
+// WriteJSONFile strips internal "__keys__" metadata (if obj is map[string]any),
+// formats obj as 4-space indented JSON, and writes it to fileName with mode 0644.
 func WriteJSONFile(fileName string, obj any) error {
 	cleaned := obj
 	if m, ok := obj.(map[string]any); ok {
@@ -545,7 +582,8 @@ func WriteJSONFile(fileName string, obj any) error {
 	return os.WriteFile(fileName, data, 0644)
 }
 
-// WriteYAMLFile writes a map/object as YAML.
+// WriteYAMLFile strips internal "__keys__" metadata (if obj is map[string]any),
+// marshals obj to YAML, and writes it to fileName with mode 0644.
 func WriteYAMLFile(fileName string, obj any) error {
 	cleaned := obj
 	if m, ok := obj.(map[string]any); ok {
@@ -558,7 +596,8 @@ func WriteYAMLFile(fileName string, obj any) error {
 	return os.WriteFile(fileName, data, 0644)
 }
 
-// MarshalYAMLString converts an arbitrary map/struct to a YAML string.
+// MarshalYAMLString strips internal "__keys__" metadata (if obj is map[string]any)
+// and marshals obj into a YAML-formatted string.
 func MarshalYAMLString(obj any) (string, error) {
 	cleaned := obj
 	if m, ok := obj.(map[string]any); ok {
@@ -570,4 +609,3 @@ func MarshalYAMLString(obj any) (string, error) {
 	}
 	return string(data), nil
 }
-

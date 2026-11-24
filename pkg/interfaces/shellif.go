@@ -10,20 +10,29 @@ import (
 	"gitlab.com/keckxde/loupedeck-commander-go/pkg/config"
 )
 
+// shellSanitizeRegex matches shell metacharacters and line breaks stripped from
+// interpolated parameter values when shell parameter sanitization is enabled.
 var shellSanitizeRegex = regexp.MustCompile("[`$;|&><\\r\\n]")
 
+// SHELLif implements a local shell command execution backend built on BaseIf.
 type SHELLif struct {
 	BaseIf
 }
 
+// NewSHELLif creates and returns a new SHELLif instance.
 func NewSHELLif() *SHELLif {
 	return &SHELLif{}
 }
 
+// sanitizeShellValue strips dangerous shell metacharacters and newlines
+// (`$ ; | & > < \r \n) from value to mitigate command injection during
+// template parameter substitution.
 func sanitizeShellValue(value string) string {
 	return shellSanitizeRegex.ReplaceAllString(value, "")
 }
 
+// Check validates that options contains all mandatory BaseIf parameters. It
+// returns 0 on success or a negative error code from BaseIf.Check.
 func (s *SHELLif) Check(options map[string]interface{}) int {
 	res := s.BaseIf.Check(options)
 	if res < 0 {
@@ -33,11 +42,22 @@ func (s *SHELLif) Check(options map[string]interface{}) int {
 	return 0
 }
 
+// Stop logs shutdown of the shell interface and returns nil.
 func (s *SHELLif) Stop() error {
 	s.LogInfo("SHELLif: Stopped\n")
 	return nil
 }
 
+// Call formats cmd using options and executes the resulting command via
+// `sh -c`, unless dry-run mode is active. By default, substituted parameter
+// values are sanitized with sanitizeShellValue; setting
+// options["sanitizeShellParams"] to false disables this sanitization.
+//
+// In dry-run mode or on successful execution, Call emits an "ok"
+// ActivityEntry and returns a map[string]string containing "stdout" and
+// "stderr" along with a nil error. On validation failure it returns (false, nil),
+// and on execution failure it emits an "error" ActivityEntry and returns
+// (false, err).
 func (s *SHELLif) Call(cmd string, options map[string]interface{}) (interface{}, error) {
 	res := s.Check(options)
 	dryRun := s.GetDryRun()

@@ -6,6 +6,9 @@ import (
 	"testing"
 )
 
+// TestParseTypedAppConfigAndProfiles verifies that the repository's config.yaml
+// and referenced profile files parse, validate, and populate ApplicationConfig.Schema
+// and each Profile.Schema.
 func TestParseTypedAppConfigAndProfiles(t *testing.T) {
 	appCfgPath := filepath.Join("..", "..", "config", "config.yaml")
 	doc, err := ParseTypedAppConfigFile(appCfgPath)
@@ -33,6 +36,9 @@ func TestParseTypedAppConfigAndProfiles(t *testing.T) {
 	}
 }
 
+// TestTypedConfigRejectsInvalidDocuments verifies that strict YAML/JSON decoding
+// and validation reject unknown fields, type mismatches, duplicate profile names,
+// invalid hex colors, invalid filter enums, inverted min/max bounds, and empty control states.
 func TestTypedConfigRejectsInvalidDocuments(t *testing.T) {
 	appCases := []struct {
 		name    string

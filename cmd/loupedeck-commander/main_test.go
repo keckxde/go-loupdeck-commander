@@ -5,6 +5,8 @@ import (
 	"testing"
 )
 
+// TestParseArgsVersionAndCommands verifies command, shortcut binary name,
+// config path, and version/help flag parsing in parseArgs.
 func TestParseArgsVersionAndCommands(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -46,6 +48,8 @@ func TestParseArgsVersionAndCommands(t *testing.T) {
 	}
 }
 
+// TestParseArgsHybridFlags verifies hybrid mode defaults and interactions with
+// --device-only and --dry-run flags.
 func TestParseArgsHybridFlags(t *testing.T) {
 	t.Run("hybrid defaults to live", func(t *testing.T) {
 		got := parseArgs([]string{"loupedeck-commander", "hybrid"})
@@ -90,6 +94,8 @@ func TestParseArgsHybridFlags(t *testing.T) {
 	})
 }
 
+// TestFormatVersion verifies that formatVersion includes the configured
+// Version and Commit metadata strings.
 func TestFormatVersion(t *testing.T) {
 	out := formatVersion()
 	if !strings.Contains(out, Version) {
@@ -100,6 +106,8 @@ func TestFormatVersion(t *testing.T) {
 	}
 }
 
+// TestParseArgsBindAndPort verifies default and explicit --bind, --listen,
+// -b, and --port host/port parsing in parseArgs.
 func TestParseArgsBindAndPort(t *testing.T) {
 	t.Run("default bind and port", func(t *testing.T) {
 		got := parseArgs([]string{"loupedeck-commander", "emulate"})

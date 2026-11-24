@@ -1,3 +1,5 @@
+// Package emulator provides the HTTP server, Server-Sent Events stream, and
+// embedded Web UI for the Loupedeck Web Emulator & Configuration Studio.
 package emulator
 
 import (
@@ -20,13 +22,20 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// emulatorUIHTML holds the embedded single-page Web Emulator & Configuration
+// Studio HTML frontend served at "/", "/index.html", and "/panel".
+//
 //go:embed emulator-ui.html
 var emulatorUIHTML []byte
 
+// iconExtRegex matches supported raster and vector icon file extensions.
 var iconExtRegex = regexp.MustCompile(`(?i)\.(png|jpg|jpeg|svg|gif)$`)
 
+// maxBodyBytes caps incoming HTTP JSON request bodies at 1 MB.
 const maxBodyBytes = 1024 * 1024 // 1 MB
 
+// ServerOptions configures StartEmulatorServer, including config file path,
+// network binding, dry-run simulation mode, emulated model, and hybrid hardware.
 type ServerOptions struct {
 	Config         string
 	Port           int
@@ -39,6 +48,8 @@ type ServerOptions struct {
 	HardwareDevice device.Device
 }
 
+// ServerInstance represents a running Web Emulator HTTP server together with
+// its listener, commander handler, emulated device, and bound TCP port.
 type ServerInstance struct {
 	HTTPServer     *http.Server
 	Listener       net.Listener
@@ -47,6 +58,7 @@ type ServerInstance struct {
 	Port           int
 }
 
+// Close stops the underlying commander handler and closes the HTTP server.
 func (s *ServerInstance) Close() error {
 	if s.Handler != nil {
 		_ = s.Handler.Stop()
@@ -57,6 +69,8 @@ func (s *ServerInstance) Close() error {
 	return nil
 }
 
+// listAvailableIcons scans "icons" and "data/icons" under baseDir and returns
+// relative paths for all matching icon files.
 func listAvailableIcons(baseDir string) []string {
 	var results []string
 	for _, relDir := range []string{"icons", "data/icons"} {
@@ -77,6 +91,8 @@ func listAvailableIcons(baseDir string) []string {
 	return results
 }
 
+// readJSONBody reads up to maxBodyBytes from r.Body and decodes the JSON
+// payload into a map, returning an empty map for empty request bodies.
 func readJSONBody(r *http.Request) (map[string]interface{}, error) {
 	defer r.Body.Close()
 	limited := io.LimitReader(r.Body, maxBodyBytes+1)
@@ -97,6 +113,8 @@ func readJSONBody(r *http.Request) (map[string]interface{}, error) {
 	return out, nil
 }
 
+// sendJSON writes a JSON response with no-store caching headers and the given
+// HTTP status code.
 func sendJSON(w http.ResponseWriter, statusCode int, payload interface{}) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
@@ -104,6 +122,9 @@ func sendJSON(w http.ResponseWriter, statusCode int, payload interface{}) {
 	_ = json.NewEncoder(w).Encode(payload)
 }
 
+// StartEmulatorServer initializes the emulated Loupedeck device and commander
+// handler, starts the HTTP/SSE API server on the configured host and port, and
+// returns the active ServerInstance.
 func StartEmulatorServer(opts ServerOptions) (*ServerInstance, error) {
 	configFile := opts.Config
 	if configFile == "" {
@@ -620,6 +641,8 @@ func StartEmulatorServer(opts ServerOptions) (*ServerInstance, error) {
 	}, nil
 }
 
+// detectLANIPv4s enumerates non-loopback IPv4 addresses configured on local
+// network interfaces for printing reachable LAN URLs at startup.
 func detectLANIPv4s() []string {
 	addrs, err := net.InterfaceAddrs()
 	if err != nil {

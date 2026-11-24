@@ -31,7 +31,10 @@ var (
 	legacyButtonProps = []string{"minPressed", "text", "nodeid", "type", "default", "group"}
 )
 
-// ValidationIssue represents a single error, warning, or info note found during validation.
+// ValidationIssue represents a single error, warning, or informational notice
+// emitted while validating an application or profile configuration file.
+// Severity is one of "error", "warning", or "info"; File and Path identify the
+// source location, and Suggestion provides optional remediation guidance.
 type ValidationIssue struct {
 	Severity   string `json:"severity"`
 	File       string `json:"file"`
@@ -40,7 +43,8 @@ type ValidationIssue struct {
 	Suggestion string `json:"suggestion,omitempty"`
 }
 
-// ValidationSummary summarizes issue counts across validated files.
+// ValidationSummary summarizes issue counts across all validated configuration
+// files along with the total number of parsed profiles.
 type ValidationSummary struct {
 	ErrorCount   int `json:"errorCount"`
 	WarningCount int `json:"warningCount"`
@@ -48,7 +52,8 @@ type ValidationSummary struct {
 	ProfileCount int `json:"profileCount"`
 }
 
-// ParsedProfileEntry holds a validated profile entry and its parsed map.
+// ParsedProfileEntry holds a parsed profile reference and its cleaned untyped map
+// (with internal "__keys__" metadata stripped) for inclusion in ValidationReport.
 type ParsedProfileEntry struct {
 	Index int            `json:"index"`
 	Name  string         `json:"name"`
@@ -56,7 +61,9 @@ type ParsedProfileEntry struct {
 	Data  map[string]any `json:"data"`
 }
 
-// ValidationReport is the full report returned by ValidateAppConfigFile.
+// ValidationReport is the full structured result returned by ValidateAppConfigFile,
+// containing overall validity, severity-grouped issue lists, summary counts, and
+// cleaned parsed application and profile maps.
 type ValidationReport struct {
 	Valid           bool                 `json:"valid"`
 	Errors          []ValidationIssue    `json:"errors"`
@@ -68,13 +75,16 @@ type ValidationReport struct {
 	ParsedProfiles  []ParsedProfileEntry `json:"parsedProfiles"`
 }
 
-// AutoFixResult holds the auto-fixed profile data and a list of human-readable fixes applied.
+// AutoFixResult holds the repaired copy of a profile map returned by
+// AutoFixProfileData along with a list of human-readable descriptions of fixes applied.
 type AutoFixResult struct {
 	FixedProfileData map[string]any `json:"fixedProfileData"`
 	FixesApplied     []string       `json:"fixesApplied"`
 }
 
-// ValidateOptions configures validation context.
+// ValidateOptions configures contextual parameters for ValidateProfileData,
+// including BaseDir for asset path checks, FileName for issue reporting, inherited
+// AppParameters and AppLayout, and profile indexing bounds.
 type ValidateOptions struct {
 	BaseDir       string
 	FileName      string
@@ -84,7 +94,11 @@ type ValidateOptions struct {
 	ProfileIndex  int
 }
 
-// ValidateAppConfigFile validates an application config file and all its referenced profile files.
+// ValidateAppConfigFile parses and validates an application config file at
+// configFilePath (resolved relative to baseDir when non-absolute, defaulting to
+// the current working directory) and every referenced profile file. It validates
+// top-level metadata, device/layout settings, parameters, and profile entries,
+// returning a ValidationReport summarizing all errors, warnings, and infos.
 func ValidateAppConfigFile(configFilePath string, baseDir string) ValidationReport {
 	if baseDir == "" {
 		baseDir, _ = os.Getwd()
@@ -217,7 +231,11 @@ func ValidateAppConfigFile(configFilePath string, baseDir string) ValidationRepo
 	return formatValidationResult(issues, CleanInternalKeys(appConfig), parsedProfiles)
 }
 
-// ValidateProfileData validates a single parsed profile map and returns its issues.
+// ValidateProfileData validates a parsed profile map against opts and returns
+// all discovered ValidationIssue items. It checks required "profile", "parameters",
+// and "touch" fields, device and grid layout overrides, parameter formatting
+// (including OPC UA endpointurl templates), and all control definitions under
+// touch (center/left/right), knobs, and physical buttons.
 func ValidateProfileData(profileData map[string]any, opts ValidateOptions) []ValidationIssue {
 	fileName := opts.FileName
 	if fileName == "" {
@@ -511,6 +529,13 @@ func ValidateProfileData(profileData map[string]any, opts ValidateOptions) []Val
 	return issues
 }
 
+// validateButtonEntry validates a single touch tile, physical button, or rotary knob
+// configuration map at pathPrefix. It checks deprecated legacy root properties,
+// params attributes (textBaseLine typo, type, filter, minPressed, minPressedMode,
+// hex colors, image existence under baseDir, default state existence, nodeid, and
+// blink), non-empty states, per-state colors/images/profile indices/brightness,
+// undefined template placeholders in cmd/http/opcua/text, and HTTP or OPC UA
+// endpoint and target validity, emitting issues through addIssue.
 func validateButtonEntry(
 	rawElem any,
 	key string,
@@ -868,7 +893,12 @@ func validateButtonEntry(
 	}
 }
 
-// AutoFixProfileData automatically fixes deprecated legacy properties, typos, and missing touch sections.
+// AutoFixProfileData creates a cleaned deep copy of profileData (stripping
+// internal "__keys__" metadata) and repairs common structural issues: adding missing
+// top-level "profile", "parameters", and "touch" sections, fixing "textBaseLine"
+// typos to "textBaseline", and migrating deprecated legacy root button properties
+// into "params" (or removing empty "group" fields). It returns an AutoFixResult
+// containing the repaired map and descriptions of each fix applied.
 func AutoFixProfileData(profileData map[string]any) AutoFixResult {
 	clone := CleanInternalKeys(CloneMap(profileData))
 	if clone == nil {
@@ -971,6 +1001,8 @@ func AutoFixProfileData(profileData map[string]any) AutoFixResult {
 	}
 }
 
+// validateDeviceAndLayoutFields checks "device", "primaryDevice", and "layout" entries in configObj
+// and emits warnings via addIssue for unknown models, invalid types, or out-of-range grid dimensions (1..16).
 func validateDeviceAndLayoutFields(configObj map[string]any, fileLabel string, addIssue func(severity, file, path, message, suggestion string)) {
 	if configObj == nil {
 		return
@@ -1038,6 +1070,8 @@ func validateDeviceAndLayoutFields(configObj map[string]any, fileLabel string, a
 	}
 }
 
+// formatValidationResult groups issues by severity ("error", "warning", "info"), builds ValidationSummary counts,
+// and returns the resulting ValidationReport.
 func formatValidationResult(issues []ValidationIssue, parsedAppConfig map[string]any, parsedProfiles []ParsedProfileEntry) ValidationReport {
 	if issues == nil {
 		issues = []ValidationIssue{}
@@ -1075,6 +1109,7 @@ func formatValidationResult(issues []ValidationIssue, parsedAppConfig map[string
 	}
 }
 
+// sliceContains reports whether item exists in slice.
 func sliceContains(slice []string, item string) bool {
 	for _, s := range slice {
 		if s == item {
@@ -1083,4 +1118,3 @@ func sliceContains(slice []string, item string) bool {
 	}
 	return false
 }
-

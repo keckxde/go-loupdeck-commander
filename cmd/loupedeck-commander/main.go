@@ -1,3 +1,6 @@
+// Command loupedeck-commander provides the hardware daemon, interactive Web Emulator
+// & Configuration Studio, hybrid mirror mode, and configuration validator for
+// Loupedeck consoles.
 package main
 
 import (
@@ -27,6 +30,8 @@ var (
 	BuildTime = "unknown"
 )
 
+// formatVersion formats the build version, commit, build timestamp, Go runtime
+// version, and OS/architecture tuple into a single printable line.
 func formatVersion() string {
 	return fmt.Sprintf(
 		"loupedeck-commander %s (commit: %s, built: %s, go: %s, %s/%s)",
@@ -39,8 +44,13 @@ func formatVersion() string {
 	)
 }
 
+// cfgFileRegex matches fallback configuration file names inside the config
+// directory (e.g., config*.yaml, config*.yml, config*.json, config*.json5).
 var cfgFileRegex = regexp.MustCompile(`(?i)^config.*\.(ya?ml|json5?)$`)
 
+// resolveDefaultConfig locates the default application configuration file path
+// relative to baseDir (checking standard YAML/JSON candidates, host-specific
+// files, sorted config directory matches, and binary-relative prefixes).
 func resolveDefaultConfig(baseDir, host string) string {
 	candidates := []string{
 		"config/config.yaml",
@@ -81,6 +91,8 @@ func resolveDefaultConfig(baseDir, host string) string {
 	return "config/config.yaml"
 }
 
+// cliArgs holds the parsed command-line subcommand, configuration path,
+// network binding options, and execution mode flags.
 type cliArgs struct {
 	command    string
 	config     string
@@ -94,6 +106,8 @@ type cliArgs struct {
 	model      string
 }
 
+// parseArgs parses argv into a cliArgs struct, handling subcommands, positional
+// config paths, executable name shortcuts (e.g. loupedeck-emulator), and flags.
 func parseArgs(argv []string) cliArgs {
 	host, _ := os.Hostname()
 	explicitConfig := false
@@ -265,6 +279,8 @@ func parseArgs(argv []string) cliArgs {
 	return args
 }
 
+// printHelp writes the CLI usage banner, supported commands, options, and
+// examples to standard output.
 func printHelp() {
 	fmt.Printf(`
 Loupedeck Commander (Go) %s — Hardware Daemon, Emulator & Configuration Tool
@@ -303,6 +319,9 @@ Examples:
 `, Version)
 }
 
+// runValidate validates the application configuration and referenced profiles,
+// optionally applying automatic fixes when args.fix is true, and returns the
+// process exit code (0 when valid, 1 when blocking errors exist).
 func runValidate(args cliArgs) int {
 	configPath := args.config
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
@@ -392,6 +411,8 @@ func runValidate(args cliArgs) int {
 	return 1
 }
 
+// waitForSignal blocks until SIGINT, SIGTERM, SIGHUP, or SIGQUIT is received
+// and invokes onStop before returning.
 func waitForSignal(onStop func()) {
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP, syscall.SIGQUIT)
@@ -402,6 +423,8 @@ func waitForSignal(onStop func()) {
 	}
 }
 
+// main is the CLI entry point that dispatches to version, help, validation,
+// Web Emulator / hybrid server, or hardware daemon execution.
 func main() {
 	args := parseArgs(os.Args)
 

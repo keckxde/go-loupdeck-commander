@@ -1,3 +1,6 @@
+// Package config provides configuration loading, strongly-typed YAML/JSON/JSON5
+// schema decoding, device and grid layout normalization, template formatting,
+// and semantic validation for Loupedeck and Razer Stream Controller profiles.
 package config
 
 import (
@@ -7,7 +10,9 @@ import (
 	"strings"
 )
 
-// DeviceSpec describes the physical capabilities and layout of a supported Loupedeck / Razer model.
+// DeviceSpec describes the physical capabilities, USB product IDs, grid
+// dimensions, button identifiers, rotary knobs, and touch displays of a
+// supported Loupedeck or Razer Stream Controller hardware model.
 type DeviceSpec struct {
 	ID         string   `json:"id"`
 	Type       string   `json:"type"`
@@ -107,7 +112,12 @@ var DeviceAliases = map[string]string{
 	"razerstreamcontrollerx":    "razer-stream-controller-x",
 }
 
-// ResolveDeviceSpec resolves a model string, product ID, or device map into a *DeviceSpec.
+// ResolveDeviceSpec resolves a model string, USB product ID, or device
+// attribute map into a matching *DeviceSpec. When input is a map[string]any, it
+// checks "productId" first and then falls back to "type", "model", "device",
+// "primaryDevice", "id", or "name". String inputs are lowercased with any
+// "(emulated)" suffix stripped before lookup in DeviceAliases. Returns nil if
+// input is nil or does not match a known device.
 func ResolveDeviceSpec(input any) *DeviceSpec {
 	if input == nil {
 		return nil
@@ -140,7 +150,10 @@ func ResolveDeviceSpec(input any) *DeviceSpec {
 	return nil
 }
 
-// LayoutConfig represents the normalized layout & primary device configuration.
+// LayoutConfig represents the normalized hardware device identity, touch-grid
+// dimensions (Columns and Rows), optional device connection filters
+// (SerialNumber and Path), and flags indicating whether the device or layout
+// were explicitly configured.
 type LayoutConfig struct {
 	Device         string `json:"device"`
 	DeviceID       string `json:"deviceId"`
@@ -152,7 +165,11 @@ type LayoutConfig struct {
 	ExplicitLayout bool   `json:"explicitLayout"`
 }
 
-// NormalizeLayoutConfig extracts and normalizes device and grid layout settings from a config map.
+// NormalizeLayoutConfig extracts and normalizes device and touch-grid layout
+// settings from rawConfig. It checks "device", "primaryDevice", and "layout"
+// blocks (including nested "serialNumber", "path", "columns", and "rows"),
+// falling back to the "loupedeck-live" specification when no model matches, and
+// records ExplicitDevice and ExplicitLayout accordingly.
 func NormalizeLayoutConfig(rawConfig map[string]any) LayoutConfig {
 	if rawConfig == nil {
 		rawConfig = map[string]any{}
@@ -245,7 +262,9 @@ func NormalizeLayoutConfig(rawConfig map[string]any) LayoutConfig {
 	}
 }
 
-// ApplicationConfig holds the top-level application configuration and its loaded profiles.
+// ApplicationConfig holds the top-level application configuration, normalized
+// device layout, global parameters, loaded profiles, initialization state,
+// base directory for relative path resolution, and the underlying typed Schema.
 type ApplicationConfig struct {
 	Application string             `json:"application"`
 	Device      string             `json:"device"`
@@ -257,7 +276,9 @@ type ApplicationConfig struct {
 	Schema      *AppConfigDocument `json:"-"`
 }
 
-// NewApplicationConfig creates a default ApplicationConfig.
+// NewApplicationConfig creates a default ApplicationConfig targeting a
+// 4x3 "Loupedeck Live" device with "undefined" application name and empty
+// Profiles and Parameters collections.
 func NewApplicationConfig() *ApplicationConfig {
 	return &ApplicationConfig{
 		Application: "undefined",
@@ -273,7 +294,11 @@ func NewApplicationConfig() *ApplicationConfig {
 	}
 }
 
-// LoadFromFile loads and validates the typed application configuration and all its profiles from disk.
+// LoadFromFile loads, strictly parses, and validates the application
+// configuration from fileName (resolved against a.BaseDir when relative),
+// updates a.BaseDir if unset, and populates ApplicationConfig and all referenced
+// profiles via LoadFromTypedDoc. Returns false if reading, parsing, validation,
+// or loading any referenced profile fails.
 func (a *ApplicationConfig) LoadFromFile(fileName string) bool {
 	fmt.Printf("ApplicationConfig: Loading Config File %s\n", fileName)
 	targetFile := fileName
@@ -289,7 +314,11 @@ func (a *ApplicationConfig) LoadFromFile(fileName string) bool {
 	return a.LoadFromTypedDoc(doc)
 }
 
-// LoadFromTypedDoc populates ApplicationConfig from a validated AppConfigDocument.
+// LoadFromTypedDoc validates doc via doc.Validate(), populates ApplicationConfig
+// fields (Schema, Application, Layout, Device, Parameters), and loads each
+// referenced profile using NewProfileFromRef while merging global parameters via
+// SetParams. Sets a.Initialized to true and returns true on success, or returns
+// false if validation or any profile load fails.
 func (a *ApplicationConfig) LoadFromTypedDoc(doc *AppConfigDocument) bool {
 	if err := doc.Validate(); err != nil {
 		fmt.Printf("ApplicationConfig: Typed schema validation failed: %v\n", err)
@@ -316,14 +345,18 @@ func (a *ApplicationConfig) LoadFromTypedDoc(doc *AppConfigDocument) bool {
 	return true
 }
 
-// TouchConfig holds the touch screen configurations (center, left, right).
+// TouchConfig holds the untyped control maps for the Center touch tile grid
+// and the Left and Right touch strips.
 type TouchConfig struct {
 	Center map[string]any `json:"center"`
 	Left   map[string]any `json:"left"`
 	Right  map[string]any `json:"right"`
 }
 
-// NewTouchConfig creates a TouchConfig and synchronizes button states with defaultState.
+// NewTouchConfig creates a TouchConfig populated with default Center, Left, and
+// Right sections, clones any overrides present in data, and synchronizes every
+// control state's missing attributes against defaultState via SyncParams in
+// deterministic OrderedKeys order.
 func NewTouchConfig(data map[string]any, defaultState map[string]any) TouchConfig {
 	tc := TouchConfig{
 		Center: defaultCenterTouchMap(),
@@ -383,6 +416,8 @@ func NewTouchConfig(data map[string]any, defaultState map[string]any) TouchConfi
 	return tc
 }
 
+// defaultCenterTouchMap constructs the default 12-tile ("0".."11") center touch
+// grid with "__keys__" ordering and off/on sample states.
 func defaultCenterTouchMap() map[string]any {
 	m := make(map[string]any, 13)
 	keys := make([]string, 12)
@@ -401,7 +436,10 @@ func defaultCenterTouchMap() map[string]any {
 	return m
 }
 
-// NewButtonConfig creates a physical buttons config or generates default brightness/profile buttons.
+// NewButtonConfig returns a cloned copy of data when non-nil, or generates
+// default physical button definitions for button "0" (brightness toggle with
+// off/half/on states) and buttons "1".."maxIndex" (profile switchers capped at
+// button "7", marking index+1 with "default": "on") along with "__keys__" ordering.
 func NewButtonConfig(data map[string]any, profileCount int, index int) map[string]any {
 	if data != nil {
 		return CloneMap(data)
@@ -460,7 +498,9 @@ func NewButtonConfig(data map[string]any, profileCount int, index int) map[strin
 	return buttons
 }
 
-// NewKnobsConfig creates a knobs config map.
+// NewKnobsConfig returns a cloned copy of data when non-nil, or generates
+// default rotary knob configurations for knobTL, knobCL, knobBL, knobTR,
+// knobCR, and knobBR with "__keys__" ordering.
 func NewKnobsConfig(data map[string]any) map[string]any {
 	if data != nil {
 		return CloneMap(data)
@@ -480,7 +520,8 @@ func NewKnobsConfig(data map[string]any) map[string]any {
 	return out
 }
 
-// NewParametersConfig returns parameters or defaults.
+// NewParametersConfig returns a cloned copy of data when non-nil, or returns
+// default host, OPC UA endpoint, node ID, and numeric range parameters.
 func NewParametersConfig(data map[string]any) map[string]any {
 	if data != nil {
 		return CloneMap(data)
@@ -494,7 +535,8 @@ func NewParametersConfig(data map[string]any) map[string]any {
 	}
 }
 
-// NewDefaultConfig returns default button state config.
+// NewDefaultConfig returns a cloned copy of data when non-nil, or returns the
+// default button state attributes ({"color": "#111111"}).
 func NewDefaultConfig(data map[string]any) map[string]any {
 	if data != nil {
 		return CloneMap(data)
@@ -504,7 +546,9 @@ func NewDefaultConfig(data map[string]any) map[string]any {
 	}
 }
 
-// Profile represents a single loaded profile configuration.
+// Profile represents a single loaded device profile, including its metadata,
+// resolved LayoutConfig, Touch/Knobs/Buttons control maps, profile Parameters,
+// Default state attributes, source File/BaseDir, Loaded flag, and typed Schema.
 type Profile struct {
 	Name        string           `json:"name"`
 	Profile     string           `json:"profile"`
@@ -526,7 +570,9 @@ type Profile struct {
 	appLayout    *LayoutConfig
 }
 
-// NewProfileFromRef creates and loads a Profile from a typed ProfileRefEntry.
+// NewProfileFromRef initializes a Profile from a typed ProfileRefEntry with
+// default control maps and immediately loads ref.File from disk using baseDir
+// and appLayout. Callers should check p.Loaded to verify loading succeeded.
 func NewProfileFromRef(ref ProfileRefEntry, profileCount int, index int, appLayout *LayoutConfig, baseDir string) *Profile {
 	p := &Profile{
 		Name:         ref.Name,
@@ -545,7 +591,8 @@ func NewProfileFromRef(ref ProfileRefEntry, profileCount int, index int, appLayo
 	return p
 }
 
-// NewProfile creates and loads a Profile from disk using a raw map entry.
+// NewProfile creates and loads a Profile from a raw map entry containing "name"
+// and "file" keys by delegating to NewProfileFromRef.
 func NewProfile(data map[string]any, profileCount int, index int, appLayout *LayoutConfig, baseDir string) *Profile {
 	return NewProfileFromRef(ProfileRefEntry{
 		Name: ToString(data["name"]),
@@ -553,7 +600,10 @@ func NewProfile(data map[string]any, profileCount int, index int, appLayout *Lay
 	}, profileCount, index, appLayout, baseDir)
 }
 
-// LoadFromFile loads and validates the typed profile YAML/JSON file.
+// LoadFromFile resolves fileName relative to p.BaseDir (when non-absolute and
+// present on disk), strictly parses and validates the profile via
+// ParseTypedProfileFile, and populates p via LoadFromTypedDoc. Returns false if
+// parsing or validation fails.
 func (p *Profile) LoadFromFile(fileName string) bool {
 	fmt.Printf("ProfileConfig: Loading Profile  File %s, Index %d\n", fileName, p.index)
 	targetPath := fileName
@@ -574,7 +624,10 @@ func (p *Profile) LoadFromFile(fileName string) bool {
 	return p.LoadFromTypedDoc(doc)
 }
 
-// LoadFromTypedDoc populates a Profile from a validated ProfileDocument.
+// LoadFromTypedDoc validates doc via doc.Validate(), resolves the profile's
+// effective Layout on top of appLayout (or default layout), populates Schema,
+// Profile, Description, Parameters, Default, Touch, Buttons, and Knobs, and
+// sets p.Loaded to true. Returns false if doc fails validation.
 func (p *Profile) LoadFromTypedDoc(doc *ProfileDocument) bool {
 	if err := doc.Validate(); err != nil {
 		fmt.Printf("ProfileConfig: Typed schema validation failed: %v\n", err)
@@ -606,7 +659,8 @@ func (p *Profile) LoadFromTypedDoc(doc *ProfileDocument) bool {
 	return true
 }
 
-// SetParams merges global application parameters into the profile parameters if not overridden.
+// SetParams merges global application parameters into p.Parameters for any key
+// not already defined by the profile, skipping internal "__keys__" metadata.
 func (p *Profile) SetParams(parameters map[string]any) {
 	if parameters == nil {
 		return
@@ -624,6 +678,8 @@ func (p *Profile) SetParams(parameters map[string]any) {
 	}
 }
 
+// firstNonNil returns the first value in vals that is non-nil and produces a
+// non-empty string via ToString, or nil if all values are empty or nil.
 func firstNonNil(vals ...any) any {
 	for _, v := range vals {
 		if v != nil && ToString(v) != "" {
@@ -633,10 +689,10 @@ func firstNonNil(vals ...any) any {
 	return nil
 }
 
+// mapVal safely looks up key in m, returning nil when m is nil.
 func mapVal(m map[string]any, key string) any {
 	if m == nil {
 		return nil
 	}
 	return m[key]
 }
-

@@ -10,6 +10,8 @@ import (
 	"go.bug.st/serial"
 )
 
+// mockSerialPort implements serial.Port in memory using an io.Pipe to simulate
+// Loupedeck WebSocket framing, MCU acknowledgment packets, and command ordering.
 type mockSerialPort struct {
 	mu      sync.Mutex
 	inPipeR *io.PipeReader
@@ -20,6 +22,7 @@ type mockSerialPort struct {
 	cmdOrder   []byte
 }
 
+// newMockSerialPort constructs a mockSerialPort backed by a connected io.Pipe pair.
 func newMockSerialPort() *mockSerialPort {
 	r, w := io.Pipe()
 	return &mockSerialPort{
@@ -28,17 +31,36 @@ func newMockSerialPort() *mockSerialPort {
 	}
 }
 
-func (m *mockSerialPort) SetMode(mode *serial.Mode) error               { return nil }
-func (m *mockSerialPort) Read(p []byte) (int, error)                    { return m.inPipeR.Read(p) }
-func (m *mockSerialPort) Drain() error                                  { return nil }
-func (m *mockSerialPort) ResetInputBuffer() error                       { return nil }
-func (m *mockSerialPort) ResetOutputBuffer() error                      { return nil }
-func (m *mockSerialPort) SetDTR(dtr bool) error                         { return nil }
-func (m *mockSerialPort) SetRTS(rts bool) error                         { return nil }
+// SetMode implements serial.Port as a no-op for the mock port.
+func (m *mockSerialPort) SetMode(mode *serial.Mode) error { return nil }
+
+// Read implements serial.Port by reading bytes written into the mock input pipe.
+func (m *mockSerialPort) Read(p []byte) (int, error) { return m.inPipeR.Read(p) }
+
+// Drain implements serial.Port as a no-op for the mock port.
+func (m *mockSerialPort) Drain() error { return nil }
+
+// ResetInputBuffer implements serial.Port as a no-op for the mock port.
+func (m *mockSerialPort) ResetInputBuffer() error { return nil }
+
+// ResetOutputBuffer implements serial.Port as a no-op for the mock port.
+func (m *mockSerialPort) ResetOutputBuffer() error { return nil }
+
+// SetDTR implements serial.Port as a no-op for the mock port.
+func (m *mockSerialPort) SetDTR(dtr bool) error { return nil }
+
+// SetRTS implements serial.Port as a no-op for the mock port.
+func (m *mockSerialPort) SetRTS(rts bool) error { return nil }
+
+// GetModemStatusBits implements serial.Port by returning an empty status struct.
 func (m *mockSerialPort) GetModemStatusBits() (*serial.ModemStatusBits, error) {
 	return &serial.ModemStatusBits{}, nil
 }
+
+// SetReadTimeout implements serial.Port as a no-op for the mock port.
 func (m *mockSerialPort) SetReadTimeout(t time.Duration) error { return nil }
+
+// Close implements serial.Port by closing both ends of the underlying pipe once.
 func (m *mockSerialPort) Close() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -49,8 +71,13 @@ func (m *mockSerialPort) Close() error {
 	}
 	return nil
 }
+
+// Break implements serial.Port as a no-op for the mock port.
 func (m *mockSerialPort) Break(d time.Duration) error { return nil }
 
+// Write implements serial.Port by decoding outgoing WebSocket binary frames,
+// recording the command byte sequence, and asynchronously writing a matching
+// MCU acknowledgment packet back into the input pipe.
 func (m *mockSerialPort) Write(p []byte) (int, error) {
 	// Parse outgoing WebSocket frame header to extract cmd and txID and send hardware ACK
 	var cmd, txID byte
@@ -82,6 +109,9 @@ func (m *mockSerialPort) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
+// TestHardwareDeviceFlowControlAndNoReadLoopDeadlock verifies that synchronous
+// DrawScreen calls invoked from OnDown do not deadlock readLoop and that
+// concurrent DrawScreen calls strictly pair CMD_FRAMEBUFF with CMD_DRAW.
 func TestHardwareDeviceFlowControlAndNoReadLoopDeadlock(t *testing.T) {
 	dev := NewHardwareLoupedeckDevice(DiscoveredPort{
 		Path:      "/dev/mockACM0",

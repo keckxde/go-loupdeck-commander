@@ -14,15 +14,23 @@ import (
 	"gitlab.com/keckxde/loupedeck-commander-go/pkg/interfaces"
 )
 
+// Button behavior types and minimum-press timing mode constants.
 const (
-	ButtonTypeNone   = ""
+	// ButtonTypeNone represents an unspecified button behavior type.
+	ButtonTypeNone = ""
+	// ButtonTypeToggle advances and persists state on each press/release cycle.
 	ButtonTypeToggle = "TOGGLE"
-	ButtonTypePush   = "PUSH"
+	// ButtonTypePush activates state while held and reverts on release.
+	ButtonTypePush = "PUSH"
 
+	// MinPressedImmediate runs the command on press even when minPressed is configured.
 	MinPressedImmediate = "immediate"
-	MinPressedDelayed   = "delayed"
+	// MinPressedDelayed defers command execution until release after holding for minPressed ms.
+	MinPressedDelayed = "delayed"
 )
 
+// Button manages the state machine, rendering, image caching, hold timing,
+// and command execution for an individual hardware, rotary, or touchscreen control.
 type Button struct {
 	Mu               sync.RWMutex
 	ID               string
@@ -46,6 +54,8 @@ type Button struct {
 	Ifaces           *interfaces.Manager
 }
 
+// NewButton constructs a Button with default rendering and interaction parameters,
+// merged with profile-level parameters, per-button params, states, and legacy properties.
 func NewButton(id string, width, height float64, data map[string]interface{}, key string, profile *config.Profile, offsetX, offsetY float64, ifaces *interfaces.Manager) *Button {
 	b := &Button{
 		ID:            id,
@@ -161,6 +171,7 @@ func NewButton(id string, width, height float64, data map[string]interface{}, ke
 	return b
 }
 
+// indexOf returns the first index of item in slice, or -1 if not found.
 func indexOf(slice []string, item string) int {
 	for i, s := range slice {
 		if s == item {
@@ -170,6 +181,8 @@ func indexOf(slice []string, item string) int {
 	return -1
 }
 
+// SetState sets the button's active state by state key name, "on"/"off" alias,
+// or numeric index (wrapping modulo len(Keys)).
 func (b *Button) SetState(val interface{}) {
 	b.Mu.Lock()
 	defer b.Mu.Unlock()
@@ -200,6 +213,7 @@ func (b *Button) SetState(val interface{}) {
 	}
 }
 
+// parseTargetProfileInt parses a non-negative integer profile index from val.
 func parseTargetProfileInt(val interface{}) (int, bool) {
 	if val == nil {
 		return 0, false
@@ -215,6 +229,8 @@ func parseTargetProfileInt(val interface{}) (int, bool) {
 	return int(f), true
 }
 
+// GetTargetProfile returns the configured target profile index from the
+// button's params or state definitions, if any.
 func (b *Button) GetTargetProfile() (int, bool) {
 	b.Mu.RLock()
 	defer b.Mu.RUnlock()
@@ -232,6 +248,8 @@ func (b *Button) GetTargetProfile() (int, bool) {
 	return 0, false
 }
 
+// getCurrentElementLocked returns the state map for the button's current Index.
+// Caller must hold b.Mu.
 func (b *Button) getCurrentElementLocked() map[string]interface{} {
 	if b.Index < 0 || b.Index >= len(b.Keys) {
 		return nil
@@ -240,6 +258,9 @@ func (b *Button) getCurrentElementLocked() map[string]interface{} {
 	return b.States[state]
 }
 
+// getParamsLocked merges profile parameters, button parameters, optional state
+// element overrides, and runtime event metadata into a single map.
+// Caller must hold b.Mu.
 func (b *Button) getParamsLocked(elem map[string]interface{}) map[string]interface{} {
 	out := make(map[string]interface{})
 	if b.Profile != nil && b.Profile.Parameters != nil {
@@ -266,6 +287,8 @@ func (b *Button) getParamsLocked(elem map[string]interface{}) map[string]interfa
 	return out
 }
 
+// GetSnapshot returns a thread-safe serializable snapshot of the button's
+// current state, visual attributes, and runtime flags for the Web Emulator UI.
 func (b *Button) GetSnapshot() map[string]interface{} {
 	b.Mu.RLock()
 	defer b.Mu.RUnlock()
@@ -311,6 +334,7 @@ func (b *Button) GetSnapshot() map[string]interface{} {
 	}
 }
 
+// isTruthyBlink interprets boolean, numeric, and string blink values.
 func isTruthyBlink(val interface{}) bool {
 	if val == nil {
 		return false
@@ -332,6 +356,8 @@ func isTruthyBlink(val interface{}) bool {
 	}
 }
 
+// IsBlinking reports whether blinking is currently active via state params or
+// EnforcedBlink.
 func (b *Button) IsBlinking() bool {
 	b.Mu.RLock()
 	defer b.Mu.RUnlock()
@@ -343,12 +369,15 @@ func (b *Button) IsBlinking() bool {
 	return b.EnforcedBlink
 }
 
+// GetGroup returns the button's configured group identifier.
 func (b *Button) GetGroup() string {
 	b.Mu.RLock()
 	defer b.Mu.RUnlock()
 	return config.ToString(b.Params["group"])
 }
 
+// DrawPhysical sends the current state's RGB LED color for hardware button id
+// to dev.
 func (b *Button) DrawPhysical(dev device.Device, id string) error {
 	b.Mu.RLock()
 	elem := b.getCurrentElementLocked()
@@ -381,6 +410,8 @@ func (b *Button) DrawPhysical(dev device.Device, id string) error {
 	return dev.SetButtonColor(targetID, rgbaStr)
 }
 
+// Draw renders the button's background, blink inversion, cached image, and
+// templated label onto ctx at the given grid row and column.
 func (b *Button) Draw(row, column int, ctx *device.Context2D) {
 	b.Mu.Lock()
 	elem := b.getCurrentElementLocked()
@@ -466,6 +497,8 @@ func (b *Button) Draw(row, column int, ctx *device.Context2D) {
 	}
 }
 
+// Load preloads and caches all state icon images configured for the button,
+// returning true if every configured image loaded successfully.
 func (b *Button) Load(globalConfig *config.Profile) bool {
 	b.Mu.Lock()
 	defer b.Mu.Unlock()
@@ -499,6 +532,8 @@ func (b *Button) Load(globalConfig *config.Profile) bool {
 	return allLoaded
 }
 
+// Pressed handles a button press event, arming any hold timer, advancing state
+// index, and executing immediate press commands when configured.
 func (b *Button) Pressed() bool {
 	b.Mu.Lock()
 	if b.HoldTimer != nil {
@@ -567,6 +602,8 @@ func (b *Button) Pressed() bool {
 	return true
 }
 
+// Released handles a button release event, cancelling any hold timer, enforcing
+// minPressed delayed checks, updating push/toggle state, and running release actions.
 func (b *Button) Released() bool {
 	b.Mu.Lock()
 	if b.HoldTimer != nil {
@@ -627,6 +664,8 @@ func (b *Button) Released() bool {
 	return true
 }
 
+// Rotated applies a rotary encoder delta to the button's bounded "value"
+// parameter and runs any configured rotation actions.
 func (b *Button) Rotated(delta int) bool {
 	b.Mu.Lock()
 	if b.getCurrentElementLocked() == nil {
@@ -645,6 +684,8 @@ func (b *Button) Rotated(delta int) bool {
 	return true
 }
 
+// ButtonStateChanged updates enforced state or blink attributes when notified
+// of an external state change (such as an OPC UA node update).
 func (b *Button) ButtonStateChanged(buttonID int, attribute, nodeid string, val interface{}) {
 	if val == nil {
 		return
@@ -675,6 +716,8 @@ func (b *Button) ButtonStateChanged(buttonID int, attribute, nodeid string, val 
 	}
 }
 
+// TouchMove tracks touch coordinates, updates directional movement flags, and
+// adjusts the bounded "touchvalue" parameter on vertical movement.
 func (b *Button) TouchMove(x, y float64) bool {
 	b.Mu.Lock()
 	defer b.Mu.Unlock()
@@ -710,6 +753,8 @@ func (b *Button) TouchMove(x, y float64) bool {
 	return false
 }
 
+// runCommandAtIndex evaluates event filters and dispatches profile, brightness,
+// vibration, Shell, HTTP, and OPC UA actions for the state at idx.
 func (b *Button) runCommandAtIndex(idx int, eventType string) {
 	b.Mu.RLock()
 	var elem map[string]interface{}
@@ -767,4 +812,3 @@ func (b *Button) runCommandAtIndex(idx int, eventType string) {
 		}
 	}
 }
-

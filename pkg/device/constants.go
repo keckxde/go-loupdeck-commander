@@ -1,7 +1,13 @@
+// Package device provides abstractions, serial/WebSocket protocol constants,
+// 2D canvas rendering, and physical, emulated, and hybrid implementations for
+// Loupedeck and Razer Stream Controller devices.
 package device
 
 import "encoding/binary"
 
+// BUTTONS maps raw hardware button and knob byte identifiers to logical
+// button indices (int) or named control strings, covering Loupedeck devices
+// and the Razer Stream Controller X.
 var BUTTONS = map[byte]interface{}{
 	0x00: "knobCT",
 	0x01: "knobTL",
@@ -48,6 +54,10 @@ var BUTTONS = map[byte]interface{}{
 	0x29: 14,
 }
 
+// FindButtonByte resolves a logical button identifier (int or string) to its
+// hardware protocol byte code and reports whether a matching entry exists.
+// Standard Loupedeck codes (0x00–0x1a) are preferred before Razer Stream
+// Controller X codes (0x1b–0x29).
 func FindButtonByte(id interface{}) (byte, bool) {
 	// Prefer 0x00..0x1a before 0x1b..0x29
 	for b := byte(0x00); b <= 0x1a; b++ {
@@ -63,6 +73,8 @@ func FindButtonByte(id interface{}) (byte, bool) {
 	return 0, false
 }
 
+// Hardware serial WebSocket protocol command identifiers exchanged with
+// Loupedeck and Razer Stream Controller devices.
 const (
 	CMD_BUTTON_PRESS   byte = 0x00
 	CMD_KNOB_ROTATE    byte = 0x01
@@ -81,6 +93,8 @@ const (
 	CMD_TOUCH_END_CT   byte = 0x72
 )
 
+// HAPTIC maps named haptic feedback patterns to their hardware vibration
+// waveform byte codes.
 var HAPTIC = map[string]byte{
 	"SHORT":        0x01,
 	"MEDIUM":       0x0a,
@@ -112,6 +126,8 @@ var HAPTIC = map[string]byte{
 	"RUMBLE1":      0x7b,
 }
 
+// Device brightness scaling, reconnect defaults, and WebSocket upgrade
+// handshake strings.
 const (
 	MAX_BRIGHTNESS             = 10
 	DEFAULT_RECONNECT_INTERVAL = 3000
@@ -119,13 +135,19 @@ const (
 	WS_UPGRADE_RESPONSE        = "HTTP/1.1"
 )
 
+// WS_CLOSE_FRAME is a masked WebSocket close frame sent to reset or cleanly
+// close a hardware serial WebSocket session.
 var WS_CLOSE_FRAME = []byte{0x88, 0x80, 0x00, 0x00, 0x00, 0x00}
 
+// VENDOR_IDS lists USB vendor IDs recognized during serial device discovery.
 var VENDOR_IDS = []uint16{
 	0x2ec2, // Loupedeck
 	0x1532, // Razer
 }
 
+// Rgba2Rgb565 converts pixelCount pixels from an RGBA byte slice into packed
+// 16-bit RGB565 bytes. Pixels are encoded in big-endian byte order when
+// bigEndian is true and little-endian otherwise.
 func Rgba2Rgb565(rgba []byte, pixelCount int, bigEndian bool) []byte {
 	out := make([]byte, pixelCount*2)
 	for i := 0; i < pixelCount*4 && i+2 < len(rgba); i += 4 {
@@ -142,6 +164,8 @@ func Rgba2Rgb565(rgba []byte, pixelCount int, bigEndian bool) []byte {
 	return out
 }
 
+// DisplayInfo describes a physical or emulated screen region, including its
+// hardware display ID, pixel dimensions, framebuffer offset, and RGB565 byte order.
 type DisplayInfo struct {
 	ID         []byte `json:"-"`
 	Width      int    `json:"width"`
@@ -150,11 +174,14 @@ type DisplayInfo struct {
 	Endianness string `json:"endianness,omitempty"`
 }
 
+// TouchTarget identifies the screen name and key index targeted by a touch contact.
 type TouchTarget struct {
 	Screen string `json:"screen"`
 	Key    int    `json:"key"`
 }
 
+// TouchPoint represents a single touch contact with its tracking ID,
+// screen-space coordinates, and resolved TouchTarget.
 type TouchPoint struct {
 	ID     int         `json:"id"`
 	X      float64     `json:"x"`
@@ -162,16 +189,21 @@ type TouchPoint struct {
 	Target TouchTarget `json:"target"`
 }
 
+// TouchEventData carries the active and changed touch contacts for touch event callbacks.
 type TouchEventData struct {
 	Touches        []TouchPoint `json:"touches"`
 	ChangedTouches []TouchPoint `json:"changedTouches"`
 }
 
+// VibrationState records the most recently triggered haptic pattern byte and its
+// Unix millisecond timestamp.
 type VibrationState struct {
 	Pattern   byte  `json:"pattern"`
 	Timestamp int64 `json:"timestamp"`
 }
 
+// Device defines the unified interface implemented by physical, emulated, and
+// hybrid Loupedeck and Razer Stream Controller devices.
 type Device interface {
 	GetType() string
 	GetModel() string
@@ -190,4 +222,3 @@ type Device interface {
 	DrawScreen(screenName string, drawCallback func(ctx *Context2D) error) error
 	GetScreenDataURL(screenName string) string
 }
-

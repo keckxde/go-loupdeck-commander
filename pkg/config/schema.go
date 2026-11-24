@@ -10,7 +10,9 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// AppConfigDocument defines the strongly-typed schema for the top-level application config file (e.g. config.yaml).
+// AppConfigDocument defines the strongly-typed schema for the top-level
+// application configuration file (e.g. config.yaml), including the application
+// name, device and grid layout overrides, global Parameters, and ordered Profiles list.
 type AppConfigDocument struct {
 	Application   string            `yaml:"application"             json:"application"`
 	Device        any               `yaml:"device,omitempty"        json:"device,omitempty"`
@@ -24,13 +26,16 @@ type AppConfigDocument struct {
 	Profiles      []ProfileRefEntry `yaml:"profiles"                json:"profiles"`
 }
 
-// ProfileRefEntry defines a typed profile reference entry inside AppConfigDocument.Profiles.
+// ProfileRefEntry defines a typed profile reference entry inside
+// AppConfigDocument.Profiles, mapping a human-readable Name to its YAML/JSON File path.
 type ProfileRefEntry struct {
 	Name string `yaml:"name" json:"name"`
 	File string `yaml:"file" json:"file"`
 }
 
-// LayoutDocument defines the strongly-typed device & touch-grid layout block.
+// LayoutDocument defines the strongly-typed device identification, touch-grid
+// dimensions (Columns and Rows), and hardware selector (SerialNumber and Path)
+// block used in both AppConfigDocument and ProfileDocument.
 type LayoutDocument struct {
 	Device       string `yaml:"device,omitempty"       json:"device,omitempty"`
 	Model        string `yaml:"model,omitempty"        json:"model,omitempty"`
@@ -44,7 +49,10 @@ type LayoutDocument struct {
 	Path         string `yaml:"path,omitempty"         json:"path,omitempty"`
 }
 
-// ProfileDocument defines the strongly-typed schema for a profile file (e.g. profile-lights.yaml).
+// ProfileDocument defines the strongly-typed schema for an individual profile
+// configuration file (e.g. profile-lights.yaml), including profile identity,
+// optional device/layout overrides, Parameters, Default state attributes,
+// Touch display controls, physical Buttons, and rotary Knobs.
 type ProfileDocument struct {
 	Name          string                  `yaml:"name,omitempty"          json:"name,omitempty"`
 	Profile       string                  `yaml:"profile"                 json:"profile"`
@@ -63,14 +71,17 @@ type ProfileDocument struct {
 	Knobs         map[string]*ControlSpec `yaml:"knobs,omitempty"         json:"knobs,omitempty"`
 }
 
-// TouchDocument defines the strongly-typed touch display sections (center grid, left & right strips).
+// TouchDocument defines the strongly-typed touch display control maps for the
+// Center tile grid and the Left and Right touch strips.
 type TouchDocument struct {
 	Center map[string]*ControlSpec `yaml:"center,omitempty" json:"center,omitempty"`
 	Left   map[string]*ControlSpec `yaml:"left,omitempty"   json:"left,omitempty"`
 	Right  map[string]*ControlSpec `yaml:"right,omitempty"  json:"right,omitempty"`
 }
 
-// ControlSpec defines a single touch tile, physical button, or rotary knob configuration.
+// ControlSpec defines a single touch tile, physical button, or rotary knob
+// configuration, consisting of ordered States, optional Params, and deprecated
+// legacy root-level properties preserved for backward compatibility.
 type ControlSpec struct {
 	States OrderedStatesMap   `yaml:"states"                   json:"states"`
 	Params *ControlParamsSpec `yaml:"params,omitempty"         json:"params,omitempty"`
@@ -85,13 +96,17 @@ type ControlSpec struct {
 	MinPressedMode *string  `yaml:"minPressedMode,omitempty" json:"minPressedMode,omitempty"`
 }
 
-// OrderedStatesMap preserves YAML key declaration order while decoding each state into a typed ControlParamsSpec.
+// OrderedStatesMap preserves YAML key declaration order in Keys while storing
+// each decoded state's typed ControlParamsSpec in Values.
 type OrderedStatesMap struct {
 	Keys   []string
 	Values map[string]*ControlParamsSpec
 }
 
-// UnmarshalYAML decodes a YAML mapping node into OrderedStatesMap while preserving key order.
+// UnmarshalYAML implements yaml.Unmarshaler to decode a YAML mapping node into
+// OrderedStatesMap while preserving the exact declaration order of state keys in
+// Keys. Null scalar state values are accepted as empty ControlParamsSpec structs;
+// non-mapping state containers return a line-numbered error.
 func (o *OrderedStatesMap) UnmarshalYAML(value *yaml.Node) error {
 	if value.Kind != yaml.MappingNode {
 		return fmt.Errorf("line %d: states must be a mapping/object", value.Line)
@@ -116,7 +131,9 @@ func (o *OrderedStatesMap) UnmarshalYAML(value *yaml.Node) error {
 	return nil
 }
 
-// ControlParamsSpec defines the typed attributes valid inside `params`, `states.<key>`, or `default`.
+// ControlParamsSpec defines the strongly-typed attributes valid inside
+// `params`, `states.<key>`, or `default`, plus Extra (`yaml:",inline"`) to capture
+// user-defined template variables.
 type ControlParamsSpec struct {
 	Color          string         `yaml:"color,omitempty"          json:"color,omitempty"`
 	TextColor      string         `yaml:"textColor,omitempty"      json:"textColor,omitempty"`
@@ -149,7 +166,9 @@ type ControlParamsSpec struct {
 	Extra          map[string]any `yaml:",inline"                  json:"-"`
 }
 
-// ToMap converts ControlParamsSpec into a normalized map[string]any for runtime execution.
+// ToMap converts ControlParamsSpec into a normalized map[string]any for runtime
+// execution, copying Extra fields first and overlaying non-empty typed fields.
+// TextColor takes precedence over the legacy lowercase LegacyTextCol ("textcolor").
 func (c *ControlParamsSpec) ToMap() map[string]any {
 	out := make(map[string]any)
 	if c == nil {
@@ -245,7 +264,9 @@ func (c *ControlParamsSpec) ToMap() map[string]any {
 	return out
 }
 
-// ToMap converts ControlSpec into the map[string]any representation expected by ButtonField/Button.
+// ToMap converts ControlSpec into the untyped map[string]any representation
+// expected by ButtonField and Button, preserving state order in
+// `states["__keys__"]` and forwarding Params and legacy top-level properties.
 func (cs *ControlSpec) ToMap() map[string]any {
 	if cs == nil {
 		return map[string]any{}
@@ -287,6 +308,9 @@ func (cs *ControlSpec) ToMap() map[string]any {
 	return out
 }
 
+// controlsMapToUntyped converts a map of typed ControlSpec entries into an
+// untyped map[string]any with deterministic JS-style "__keys__" ordering.
+// Returns nil if src is nil.
 func controlsMapToUntyped(src map[string]*ControlSpec) map[string]any {
 	if src == nil {
 		return nil
@@ -302,7 +326,9 @@ func controlsMapToUntyped(src map[string]*ControlSpec) map[string]any {
 	return out
 }
 
-// ToMap converts TouchDocument into a map[string]any representation for NewTouchConfig.
+// ToMap converts TouchDocument into a map[string]any representation for
+// NewTouchConfig, converting non-nil Center, Left, and Right sections via
+// controlsMapToUntyped. Returns nil if td is nil.
 func (td *TouchDocument) ToMap() map[string]any {
 	if td == nil {
 		return nil
@@ -320,7 +346,9 @@ func (td *TouchDocument) ToMap() map[string]any {
 	return out
 }
 
-// NormalizeLayout resolves a ProfileDocument's layout overrides on top of baseLayout.
+// NormalizeLayout resolves a ProfileDocument's device, layout, grid dimension,
+// serial number, and path overrides on top of baseLayout via NormalizeLayoutConfig.
+// Returns baseLayout unchanged if doc is nil or specifies no overrides.
 func (doc *ProfileDocument) NormalizeLayout(baseLayout LayoutConfig) LayoutConfig {
 	if doc == nil {
 		return baseLayout
@@ -354,7 +382,8 @@ func (doc *ProfileDocument) NormalizeLayout(baseLayout LayoutConfig) LayoutConfi
 	return NormalizeLayoutConfig(merged)
 }
 
-// ToRawMap converts LayoutDocument to a map[string]any for NormalizeLayoutConfig.
+// ToRawMap converts populated fields of LayoutDocument into an untyped
+// map[string]any suitable for NormalizeLayoutConfig. Returns nil if l is nil.
 func (l *LayoutDocument) ToRawMap() map[string]any {
 	if l == nil {
 		return nil
@@ -393,7 +422,10 @@ func (l *LayoutDocument) ToRawMap() map[string]any {
 	return m
 }
 
-// Validate checks structural and semantic validity of AppConfigDocument.
+// Validate checks structural and semantic validity of AppConfigDocument,
+// verifying a non-empty Application name, at least one ProfileRefEntry with
+// unique non-empty Name and non-empty File, and positive Columns/Rows counts
+// in both top-level and Layout fields.
 func (doc *AppConfigDocument) Validate() error {
 	if doc == nil {
 		return fmt.Errorf("application config document is nil")
@@ -434,7 +466,8 @@ func (doc *AppConfigDocument) Validate() error {
 	return nil
 }
 
-// NormalizeLayout resolves the typed AppConfigDocument layout settings into a LayoutConfig.
+// NormalizeLayout collects AppConfigDocument device, connection, and grid
+// layout fields into a raw map and normalizes them via NormalizeLayoutConfig.
 func (doc *AppConfigDocument) NormalizeLayout() LayoutConfig {
 	raw := map[string]any{
 		"device":        doc.Device,
@@ -454,7 +487,10 @@ func (doc *AppConfigDocument) NormalizeLayout() LayoutConfig {
 	return NormalizeLayoutConfig(raw)
 }
 
-// Validate checks structural and semantic validity of ProfileDocument.
+// Validate checks structural and semantic validity of ProfileDocument, ensuring
+// required Profile, Touch, and Parameters sections exist, grid dimensions are
+// positive, and every control in Touch (Center, Left, Right), Buttons, and Knobs
+// defines at least one state with valid Params and state ControlParamsSpec entries.
 func (doc *ProfileDocument) Validate() error {
 	if doc == nil {
 		return fmt.Errorf("profile document is nil")
@@ -526,7 +562,10 @@ func (doc *ProfileDocument) Validate() error {
 	return nil
 }
 
-// Validate checks typed parameter constraints (colors, enums, numeric ranges).
+// Validate checks typed parameter constraints on ControlParamsSpec—including
+// #RRGGBB hex colors, allowed Type/Filter/TextAlign/TextBaseline/MinPressedMode
+// enums, non-negative MinPressed, Brightness within [0, 100], and Min <= Max—and
+// prefixes any validation error with path.
 func (p *ControlParamsSpec) Validate(path string) error {
 	if p == nil {
 		return nil
@@ -564,7 +603,9 @@ func (p *ControlParamsSpec) Validate(path string) error {
 	return nil
 }
 
-// ParseTypedAppConfigFile strictly decodes and validates an AppConfigDocument from a YAML/JSON/JSON5 file.
+// ParseTypedAppConfigFile reads filePath, strips JSON5 comments for .json and
+// .json5 files, and strictly decodes and validates the resulting
+// AppConfigDocument via ParseTypedAppConfigBytes.
 func ParseTypedAppConfigFile(filePath string) (*AppConfigDocument, error) {
 	rawBytes, err := os.ReadFile(filePath)
 	if err != nil {
@@ -577,7 +618,9 @@ func ParseTypedAppConfigFile(filePath string) (*AppConfigDocument, error) {
 	return ParseTypedAppConfigBytes([]byte(content))
 }
 
-// ParseTypedAppConfigBytes strictly decodes and validates an AppConfigDocument from YAML/JSON bytes.
+// ParseTypedAppConfigBytes rejects empty input, strictly decodes YAML/JSON
+// bytes into an AppConfigDocument with KnownFields(true) enabled, and runs
+// doc.Validate().
 func ParseTypedAppConfigBytes(data []byte) (*AppConfigDocument, error) {
 	if len(bytes.TrimSpace(data)) == 0 {
 		return nil, fmt.Errorf("configuration file is empty")
@@ -595,7 +638,9 @@ func ParseTypedAppConfigBytes(data []byte) (*AppConfigDocument, error) {
 	return &doc, nil
 }
 
-// ParseTypedProfileFile strictly decodes and validates a ProfileDocument from a YAML/JSON/JSON5 file.
+// ParseTypedProfileFile reads filePath, strips JSON5 comments for .json and
+// .json5 files, and strictly decodes and validates the resulting
+// ProfileDocument via ParseTypedProfileBytes.
 func ParseTypedProfileFile(filePath string) (*ProfileDocument, error) {
 	rawBytes, err := os.ReadFile(filePath)
 	if err != nil {
@@ -608,7 +653,8 @@ func ParseTypedProfileFile(filePath string) (*ProfileDocument, error) {
 	return ParseTypedProfileBytes([]byte(content))
 }
 
-// ParseTypedProfileBytes strictly decodes and validates a ProfileDocument from YAML/JSON bytes.
+// ParseTypedProfileBytes rejects empty input, strictly decodes YAML/JSON bytes
+// into a ProfileDocument with KnownFields(true) enabled, and runs doc.Validate().
 func ParseTypedProfileBytes(data []byte) (*ProfileDocument, error) {
 	if len(bytes.TrimSpace(data)) == 0 {
 		return nil, fmt.Errorf("profile file is empty")
@@ -626,6 +672,9 @@ func ParseTypedProfileBytes(data []byte) (*ProfileDocument, error) {
 	return &doc, nil
 }
 
+// resolveBaseDirFromConfigPath returns currentBaseDir when non-empty, or
+// derives the project root directory from targetFile (stepping up one level if
+// targetFile resides in a "config" subdirectory).
 func resolveBaseDirFromConfigPath(targetFile string, currentBaseDir string) string {
 	if currentBaseDir != "" {
 		return currentBaseDir

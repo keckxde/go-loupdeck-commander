@@ -11,6 +11,8 @@ import (
 	"gitlab.com/keckxde/loupedeck-commander-go/pkg/interfaces"
 )
 
+// ButtonFieldOptions configures cell dimensions and drawing offsets for a
+// ButtonField.
 type ButtonFieldOptions struct {
 	CellWidth  float64
 	CellHeight float64
@@ -18,6 +20,8 @@ type ButtonFieldOptions struct {
 	OffsetY    float64
 }
 
+// ButtonField groups a grid or collection of Button instances belonging to a
+// single Loupedeck surface (physical buttons, knobs, or touch screens).
 type ButtonField struct {
 	Mu         sync.RWMutex
 	Name       string
@@ -38,6 +42,8 @@ type ButtonField struct {
 	Ifaces     *interfaces.Manager
 }
 
+// NewButtonField creates a ButtonField and initializes Button instances for all
+// keys present in data using the computed cell dimensions and options.
 func NewButtonField(name string, rows, columns, width, height int, data map[string]interface{}, profile *config.Profile, opts ButtonFieldOptions, ifaces *interfaces.Manager) *ButtonField {
 	screen := width > 0 && height > 0
 	bType := "button"
@@ -94,18 +100,22 @@ func NewButtonField(name string, rows, columns, width, height int, data map[stri
 	return bf
 }
 
+// IsDirty reports whether any button in the field requires redrawing.
 func (bf *ButtonField) IsDirty() bool {
 	bf.Mu.RLock()
 	defer bf.Mu.RUnlock()
 	return bf.Dirty
 }
 
+// MarkDirty flags the ButtonField as needing a redraw.
 func (bf *ButtonField) MarkDirty() {
 	bf.Mu.Lock()
 	defer bf.Mu.Unlock()
 	bf.Dirty = true
 }
 
+// HasBlinkingButtons reports whether any button in the field is currently
+// blinking.
 func (bf *ButtonField) HasBlinkingButtons() bool {
 	bf.Mu.RLock()
 	defer bf.Mu.RUnlock()
@@ -122,6 +132,8 @@ func (bf *ButtonField) HasBlinkingButtons() bool {
 	return false
 }
 
+// MapHardwareKeyToConfigKey maps a hardware key index from a device grid of
+// size (deviceColumns, deviceRows) onto the ButtonField's configured grid.
 func (bf *ButtonField) MapHardwareKeyToConfigKey(hardwareKey interface{}, deviceColumns, deviceRows int) (string, bool) {
 	bf.Mu.RLock()
 	defer bf.Mu.RUnlock()
@@ -153,6 +165,8 @@ func (bf *ButtonField) MapHardwareKeyToConfigKey(hardwareKey interface{}, device
 	return strconv.Itoa(row*bf.Columns + col), true
 }
 
+// Draw renders either physical button LED colors or the full touchscreen grid
+// onto dev, re-marking the field dirty if drawing fails.
 func (bf *ButtonField) Draw(dev device.Device) error {
 	if dev == nil {
 		return nil
@@ -233,6 +247,8 @@ func (bf *ButtonField) Draw(dev device.Device) error {
 	return nil
 }
 
+// isPhysicalButtonSupported reports whether key matches any string or integer
+// button identifier in supported.
 func isPhysicalButtonSupported(supported []interface{}, key string) bool {
 	numKey, numErr := strconv.Atoi(key)
 	for _, s := range supported {
@@ -250,6 +266,8 @@ func isPhysicalButtonSupported(supported []interface{}, key string) bool {
 	return false
 }
 
+// SyncProfileButtons sets the state ("on"/"off") of buttons belonging to the
+// "profiles" group to reflect activeProfileIndex.
 func (bf *ButtonField) SyncProfileButtons(activeProfileIndex int) {
 	if activeProfileIndex < 0 {
 		return
@@ -281,6 +299,8 @@ func (bf *ButtonField) SyncProfileButtons(activeProfileIndex int) {
 	bf.Dirty = true
 }
 
+// SetState sets the state of button id to val and marks the field dirty if the
+// button exists.
 func (bf *ButtonField) SetState(id string, val interface{}) {
 	bf.Mu.Lock()
 	btn := bf.Buttons[id]
@@ -293,6 +313,7 @@ func (bf *ButtonField) SetState(id string, val interface{}) {
 	}
 }
 
+// GetSnapshot returns a map of button keys to their current GetSnapshot outputs.
 func (bf *ButtonField) GetSnapshot() map[string]interface{} {
 	bf.Mu.RLock()
 	defer bf.Mu.RUnlock()
@@ -305,6 +326,8 @@ func (bf *ButtonField) GetSnapshot() map[string]interface{} {
 	return out
 }
 
+// Load triggers image preloading on every button in the field and marks the
+// field dirty.
 func (bf *ButtonField) Load() {
 	bf.Mu.RLock()
 	keys := append([]string(nil), bf.Keys...)
@@ -322,6 +345,8 @@ func (bf *ButtonField) Load() {
 	bf.MarkDirty()
 }
 
+// checkAndCreateButton returns the Button for id, creating a default Button if
+// one is not already registered.
 func (bf *ButtonField) checkAndCreateButton(id string) *Button {
 	bf.Mu.Lock()
 	defer bf.Mu.Unlock()
@@ -333,6 +358,7 @@ func (bf *ButtonField) checkAndCreateButton(id string) *Button {
 	return tb
 }
 
+// Pressed forwards a press event to button id and marks the field dirty.
 func (bf *ButtonField) Pressed(id string) bool {
 	btn := bf.checkAndCreateButton(id)
 	res := btn.Pressed()
@@ -340,6 +366,8 @@ func (bf *ButtonField) Pressed(id string) bool {
 	return res
 }
 
+// Released forwards a release event to button id, resets peer buttons sharing
+// its toggle group if any, and marks the field dirty.
 func (bf *ButtonField) Released(id string) bool {
 	btn := bf.checkAndCreateButton(id)
 	res := btn.Released()
@@ -367,6 +395,8 @@ func (bf *ButtonField) Released(id string) bool {
 	return res
 }
 
+// ButtonStateChanged propagates an external state or attribute update for
+// changedButtonID and reports whether a matching button was updated.
 func (bf *ButtonField) ButtonStateChanged(changedButtonID, attribute, nodeid string, val interface{}) bool {
 	bf.Mu.RLock()
 	keys := append([]string(nil), bf.Keys...)
@@ -388,6 +418,8 @@ func (bf *ButtonField) ButtonStateChanged(changedButtonID, attribute, nodeid str
 	return updated
 }
 
+// Rotated forwards a rotary encoder delta event to button id and marks the
+// field dirty.
 func (bf *ButtonField) Rotated(id string, delta int) bool {
 	btn := bf.checkAndCreateButton(id)
 	res := btn.Rotated(delta)
@@ -395,10 +427,11 @@ func (bf *ButtonField) Rotated(id string, delta int) bool {
 	return res
 }
 
+// TouchMove forwards a touch-move coordinate event to button id and marks the
+// field dirty.
 func (bf *ButtonField) TouchMove(id string, x, y float64) bool {
 	btn := bf.checkAndCreateButton(id)
 	res := btn.TouchMove(x, y)
 	bf.MarkDirty()
 	return res
 }
-

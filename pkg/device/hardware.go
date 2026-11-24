@@ -15,6 +15,8 @@ import (
 	"go.bug.st/serial/enumerator"
 )
 
+// DiscoveredPort describes a USB serial port matching a supported Loupedeck or
+// Razer Stream Controller vendor and product ID.
 type DiscoveredPort struct {
 	Path         string
 	VendorID     uint16
@@ -23,6 +25,8 @@ type DiscoveredPort struct {
 	Model        string
 }
 
+// DiscoverSerialDevices enumerates attached serial ports, filters USB devices
+// matching VENDOR_IDS, and maps known VID/PID pairs to controller model strings.
 func DiscoverSerialDevices() ([]DiscoveredPort, error) {
 	ports, err := enumerator.GetDetailedPortsList()
 	if err != nil {
@@ -71,6 +75,11 @@ func DiscoverSerialDevices() ([]DiscoveredPort, error) {
 	return results, nil
 }
 
+// HardwareLoupedeckDevice communicates with a physical Loupedeck or Razer Stream
+// Controller over a USB serial WebSocket transport and implements Device.
+// Wire transactions are serialized via sendMu, screen framebuffer uploads and
+// draws are serialized via drawMu, and incoming input events are dispatched
+// asynchronously on eventLoop so readLoop never blocks waiting for user callbacks.
 type HardwareLoupedeckDevice struct {
 	Mu            sync.RWMutex
 	Path          string
@@ -91,40 +100,43 @@ type HardwareLoupedeckDevice struct {
 	Brightness    float64
 	LastVibration *VibrationState
 
-	portMu        sync.Mutex
-	port          serial.Port
-	connected     bool
-	sendMu        sync.Mutex
-	drawMu        sync.Mutex
-	txID          byte
-	pendingMu     sync.Mutex
-	pending       map[byte]chan []byte
-	touches       map[int]TouchPoint
-	stopCh        chan struct{}
-	eventCh       chan func()
+	portMu    sync.Mutex
+	port      serial.Port
+	connected bool
+	sendMu    sync.Mutex
+	drawMu    sync.Mutex
+	txID      byte
+	pendingMu sync.Mutex
+	pending   map[byte]chan []byte
+	touches   map[int]TouchPoint
+	stopCh    chan struct{}
+	eventCh   chan func()
 
-	OnConnect     func(address string)
-	OnDisconnect  func(err error)
-	OnDown        func(id interface{})
-	OnUp          func(id interface{})
-	OnRotate      func(id string, delta int)
-	OnTouchStart  func(data TouchEventData)
-	OnTouchMove   func(data TouchEventData)
-	OnTouchEnd    func(data TouchEventData)
+	OnConnect    func(address string)
+	OnDisconnect func(err error)
+	OnDown       func(id interface{})
+	OnUp         func(id interface{})
+	OnRotate     func(id string, delta int)
+	OnTouchStart func(data TouchEventData)
+	OnTouchMove  func(data TouchEventData)
+	OnTouchEnd   func(data TouchEventData)
 }
 
+// NewHardwareLoupedeckDevice creates a HardwareLoupedeckDevice from a
+// DiscoveredPort, configuring model-specific displays, buttons, knobs, and
+// black-initialized screen canvases.
 func NewHardwareLoupedeckDevice(disc DiscoveredPort) *HardwareLoupedeckDevice {
 	d := &HardwareLoupedeckDevice{
-		Path:          disc.Path,
-		VendorID:      disc.VendorID,
-		ProductID:     disc.ProductID,
-		Model:         disc.Model,
-		Type:          "Loupedeck Live",
-		Rows:          3,
-		Columns:       4,
-		KeySize:       90,
-		VisibleX:      [2]int{0, 480},
-		Brightness:    1.0,
+		Path:       disc.Path,
+		VendorID:   disc.VendorID,
+		ProductID:  disc.ProductID,
+		Model:      disc.Model,
+		Type:       "Loupedeck Live",
+		Rows:       3,
+		Columns:    4,
+		KeySize:    90,
+		VisibleX:   [2]int{0, 480},
+		Brightness: 1.0,
 		Displays: map[string]DisplayInfo{
 			"center": {ID: []byte{0x00, 'M'}, Width: 360, Height: 270, Offset: [2]int{60, 0}},
 			"left":   {ID: []byte{0x00, 'M'}, Width: 60, Height: 270, Offset: [2]int{0, 0}},
@@ -195,16 +207,35 @@ func NewHardwareLoupedeckDevice(disc DiscoveredPort) *HardwareLoupedeckDevice {
 	return d
 }
 
-func (d *HardwareLoupedeckDevice) GetType() string                     { return d.Type }
-func (d *HardwareLoupedeckDevice) GetModel() string                    { return d.Model }
-func (d *HardwareLoupedeckDevice) GetRows() int                        { return d.Rows }
-func (d *HardwareLoupedeckDevice) GetColumns() int                     { return d.Columns }
-func (d *HardwareLoupedeckDevice) GetKeySize() int                     { return d.KeySize }
-func (d *HardwareLoupedeckDevice) GetVisibleX() [2]int                 { return d.VisibleX }
-func (d *HardwareLoupedeckDevice) GetDisplays() map[string]DisplayInfo { return d.Displays }
-func (d *HardwareLoupedeckDevice) GetButtons() []interface{}           { return d.Buttons }
-func (d *HardwareLoupedeckDevice) GetKnobs() []string                  { return d.Knobs }
+// GetType returns the human-readable hardware device type name.
+func (d *HardwareLoupedeckDevice) GetType() string { return d.Type }
 
+// GetModel returns the normalized hardware device model identifier.
+func (d *HardwareLoupedeckDevice) GetModel() string { return d.Model }
+
+// GetRows returns the number of touch key rows on the hardware device.
+func (d *HardwareLoupedeckDevice) GetRows() int { return d.Rows }
+
+// GetColumns returns the number of touch key columns on the hardware device.
+func (d *HardwareLoupedeckDevice) GetColumns() int { return d.Columns }
+
+// GetKeySize returns the width and height of each square touch key in pixels.
+func (d *HardwareLoupedeckDevice) GetKeySize() int { return d.KeySize }
+
+// GetVisibleX returns the visible horizontal pixel range [minX, maxX].
+func (d *HardwareLoupedeckDevice) GetVisibleX() [2]int { return d.VisibleX }
+
+// GetDisplays returns the map of named display regions and their hardware protocol metadata.
+func (d *HardwareLoupedeckDevice) GetDisplays() map[string]DisplayInfo { return d.Displays }
+
+// GetButtons returns the slice of physical button identifiers supported by the hardware model.
+func (d *HardwareLoupedeckDevice) GetButtons() []interface{} { return d.Buttons }
+
+// GetKnobs returns the slice of rotary knob identifiers supported by the hardware model.
+func (d *HardwareLoupedeckDevice) GetKnobs() []string { return d.Knobs }
+
+// GetScreenDataURL returns the cached PNG data URL for screenName, encoding and
+// caching the underlying Canvas on demand if no cached URL exists yet.
 func (d *HardwareLoupedeckDevice) GetScreenDataURL(screenName string) string {
 	d.Mu.Lock()
 	defer d.Mu.Unlock()
@@ -219,6 +250,10 @@ func (d *HardwareLoupedeckDevice) GetScreenDataURL(screenName string) string {
 	return ""
 }
 
+// performWSHandshake sends the WebSocket upgrade request over port and reads
+// until an HTTP/1.1 header terminator ("\r\n\r\n" or "\n\n") or timeout is
+// reached. It returns any trailing binary frame bytes already read after the
+// header and reports whether the handshake succeeded.
 func performWSHandshake(port serial.Port, timeout time.Duration) ([]byte, bool) {
 	_ = port.SetReadTimeout(timeout)
 	_ = port.ResetInputBuffer()
@@ -263,6 +298,10 @@ func performWSHandshake(port serial.Port, timeout time.Duration) ([]byte, bool) 
 	return nil, false
 }
 
+// Connect opens the serial port at 256000 baud (8N1), performs the WebSocket
+// upgrade handshake (sending WS_CLOSE_FRAME to recover if the device was left
+// in WebSocket mode by a prior session), starts the background eventLoop and
+// readLoop goroutines, and invokes OnConnect with the port path.
 func (d *HardwareLoupedeckDevice) Connect() error {
 	mode := &serial.Mode{
 		BaudRate: 256000,
@@ -309,6 +348,8 @@ func (d *HardwareLoupedeckDevice) Connect() error {
 	return nil
 }
 
+// clearPending closes and removes all pending transaction ACK channels when the
+// connection shuts down.
 func (d *HardwareLoupedeckDevice) clearPending() {
 	d.pendingMu.Lock()
 	for tx, ch := range d.pending {
@@ -320,6 +361,9 @@ func (d *HardwareLoupedeckDevice) clearPending() {
 	d.pendingMu.Unlock()
 }
 
+// Close sends WS_CLOSE_FRAME, closes the underlying serial port, signals
+// background goroutines to exit via stopCh, clears pending transaction ACKs,
+// and invokes OnDisconnect with nil error.
 func (d *HardwareLoupedeckDevice) Close() error {
 	d.portMu.Lock()
 	if !d.connected || d.port == nil {
@@ -345,6 +389,8 @@ func (d *HardwareLoupedeckDevice) Close() error {
 	return err
 }
 
+// eventLoop drains and runs queued input callback functions sequentially until
+// stopCh is closed or eventCh is closed.
 func (d *HardwareLoupedeckDevice) eventLoop(stopCh chan struct{}, eventCh chan func()) {
 	for {
 		select {
@@ -361,6 +407,9 @@ func (d *HardwareLoupedeckDevice) eventLoop(stopCh chan struct{}, eventCh chan f
 	}
 }
 
+// dispatchEvent schedules fn on eventCh for asynchronous execution on eventLoop,
+// spawning a fallback goroutine if eventCh is uninitialized or full so readLoop
+// never blocks.
 func (d *HardwareLoupedeckDevice) dispatchEvent(fn func()) {
 	d.portMu.Lock()
 	eventCh := d.eventCh
@@ -378,6 +427,10 @@ func (d *HardwareLoupedeckDevice) dispatchEvent(fn func()) {
 	}
 }
 
+// readLoop continuously reads WebSocket binary frames (0x82) from port,
+// starting with any initial leftover bytes from the handshake, extracts
+// framed packets for onReceive, and tears down the connection with OnDisconnect
+// if a serial read error occurs.
 func (d *HardwareLoupedeckDevice) readLoop(port serial.Port, stopCh chan struct{}, initial []byte) {
 	buffer := append([]byte(nil), initial...)
 	readBuf := make([]byte, 1024)
@@ -437,6 +490,10 @@ func (d *HardwareLoupedeckDevice) readLoop(port serial.Port, stopCh chan struct{
 	}
 }
 
+// onReceive decodes an incoming Loupedeck packet's length, command byte,
+// transaction ID, and payload. Any matching in-flight ACK waiter in pending is
+// resolved immediately on readLoop, while hardware input events are dispatched
+// asynchronously via dispatchEvent.
 func (d *HardwareLoupedeckDevice) onReceive(buff []byte) {
 	if len(buff) < 3 {
 		return
@@ -484,6 +541,9 @@ func (d *HardwareLoupedeckDevice) onReceive(buff []byte) {
 	}
 }
 
+// handleButtonPress decodes a button press/release payload, invokes OnDown or
+// OnUp, and synthesizes OnTouchStart/OnTouchEnd events for numbered tactile
+// keys on the Razer Stream Controller X.
 func (d *HardwareLoupedeckDevice) handleButtonPress(payload []byte) {
 	if len(payload) < 2 {
 		return
@@ -522,6 +582,8 @@ func (d *HardwareLoupedeckDevice) handleButtonPress(payload []byte) {
 	}
 }
 
+// handleKnobRotate decodes a signed 8-bit rotary encoder delta payload and
+// invokes OnRotate with the knob identifier and step delta.
 func (d *HardwareLoupedeckDevice) handleKnobRotate(payload []byte) {
 	if len(payload) < 2 {
 		return
@@ -537,6 +599,8 @@ func (d *HardwareLoupedeckDevice) handleKnobRotate(payload []byte) {
 	}
 }
 
+// getTarget maps raw touch (x, y) pixel coordinates and contact id to a
+// model-specific TouchTarget screen name and grid key index.
 func (d *HardwareLoupedeckDevice) getTarget(x, y float64, id int) TouchTarget {
 	if d.Model == "ct" && id == 0 {
 		return TouchTarget{Screen: "knob", Key: 0}
@@ -588,6 +652,9 @@ func (d *HardwareLoupedeckDevice) getTarget(x, y float64, id int) TouchTarget {
 	return TouchTarget{Screen: "center", Key: row*d.Columns + col}
 }
 
+// handleTouch decodes a touch coordinate packet, updates active contacts in
+// touches under Mu, promotes first-seen contact IDs to "touchstart", and
+// invokes OnTouchStart, OnTouchMove, or OnTouchEnd.
 func (d *HardwareLoupedeckDevice) handleTouch(event string, payload []byte) {
 	if len(payload) < 6 {
 		return
@@ -638,6 +705,10 @@ func (d *HardwareLoupedeckDevice) handleTouch(event string, payload []byte) {
 	}
 }
 
+// sendPacket wraps cmd and data with a monotonic non-zero transaction ID inside
+// a WebSocket binary frame, serializes the write on the wire via sendMu, tears
+// down the port on write failure, and waits up to 150ms (or 500ms for
+// CMD_FRAMEBUFF) for a matching MCU ACK or disconnect signal.
 func (d *HardwareLoupedeckDevice) sendPacket(cmd byte, data []byte) error {
 	// Serialize all transactions on the wire so the Loupedeck MCU processes one packet + ACK at a time
 	d.sendMu.Lock()
@@ -745,6 +816,8 @@ func (d *HardwareLoupedeckDevice) sendPacket(cmd byte, data []byte) error {
 	}
 }
 
+// SetBrightness clamps value to [0, 1], updates Brightness, and sends
+// CMD_SET_BRIGHTNESS scaled to [0, MAX_BRIGHTNESS] to the hardware.
 func (d *HardwareLoupedeckDevice) SetBrightness(value float64) error {
 	if value < 0 {
 		value = 0
@@ -759,6 +832,8 @@ func (d *HardwareLoupedeckDevice) SetBrightness(value float64) error {
 	return d.sendPacket(CMD_SET_BRIGHTNESS, []byte{b})
 }
 
+// Vibrate triggers a hardware haptic waveform via CMD_SET_VIBRATION (defaulting
+// pattern 0 to HAPTIC["SHORT"]) and records LastVibration. It is a no-op on razer-x.
 func (d *HardwareLoupedeckDevice) Vibrate(pattern byte) error {
 	if d.Model == "razer-x" {
 		return nil
@@ -775,6 +850,9 @@ func (d *HardwareLoupedeckDevice) Vibrate(pattern byte) error {
 	return d.sendPacket(CMD_SET_VIBRATION, []byte{pattern})
 }
 
+// SetButtonColor resolves button id to its hardware byte code, parses colorStr
+// into RGB bytes, caches the color in ButtonColors, and sends CMD_SET_COLOR.
+// It is a no-op on razer-x and returns an error for unknown button IDs.
 func (d *HardwareLoupedeckDevice) SetButtonColor(id interface{}, colorStr string) error {
 	if d.Model == "razer-x" {
 		return nil
@@ -790,6 +868,9 @@ func (d *HardwareLoupedeckDevice) SetButtonColor(id interface{}, colorStr string
 	return d.sendPacket(CMD_SET_COLOR, []byte{key, r, g, b})
 }
 
+// DrawScreen clears screenName to black, runs drawCallback on its Context2D,
+// encodes the resulting pixels to RGB565, and atomically uploads and commits
+// the framebuffer via CMD_FRAMEBUFF followed by CMD_DRAW under drawMu.
 func (d *HardwareLoupedeckDevice) DrawScreen(screenName string, drawCallback func(ctx *Context2D) error) error {
 	// Keep canvas render + CMD_FRAMEBUFF + CMD_DRAW atomic per screen draw so concurrent callers never interleave
 	d.drawMu.Lock()
@@ -836,4 +917,3 @@ func (d *HardwareLoupedeckDevice) DrawScreen(screenName string, drawCallback fun
 	}
 	return d.sendPacket(CMD_DRAW, displayInfo.ID)
 }
-
