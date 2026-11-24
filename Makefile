@@ -88,4 +88,4 @@ vendor:
 
 clean:
 	rm -rf build build-RELEASE build-DEBUG build-RACE build-WINDOWS build-NINJA
-	rm -f $(BINARY_NAME) $(BINARY_NAME).exe
+	rm -f $(BINARY_NAME) $(BINARY_NAME).exe loupedeck-emulator loupedeck-emulator.cmd

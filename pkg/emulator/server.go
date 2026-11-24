@@ -28,13 +28,15 @@ var iconExtRegex = regexp.MustCompile(`(?i)\.(png|jpg|jpeg|svg|gif)$`)
 const maxBodyBytes = 1024 * 1024 // 1 MB
 
 type ServerOptions struct {
-	Config     string
-	Port       int
-	Host       string
-	DryRun     *bool
-	Model      string
-	BaseDir    string
-	DeviceOnly bool
+	Config         string
+	Port           int
+	Host           string
+	DryRun         *bool
+	Model          string
+	BaseDir        string
+	DeviceOnly     bool
+	Hybrid         bool
+	HardwareDevice device.Device
 }
 
 type ServerInstance struct {
@@ -186,7 +188,9 @@ func StartEmulatorServer(opts ServerOptions) (*ServerInstance, error) {
 
 	handler, err := commander.NewBaseLoupeDeckHandler(configFile, commander.HandlerOptions{
 		Device:             emulatedDevice,
-		Emulate:            true,
+		HardwareDevice:     opts.HardwareDevice,
+		Emulate:            !opts.Hybrid,
+		Hybrid:             opts.Hybrid,
 		Model:              model,
 		DryRun:             dryRun,
 		AllowInvalidConfig: true,
@@ -344,6 +348,7 @@ func StartEmulatorServer(opts ServerOptions) (*ServerInstance, error) {
 				"availableIcons": listAvailableIcons(baseDir),
 				"dryRun":         handler.Ifaces.GetSimulationMode(),
 				"deviceOnly":     opts.DeviceOnly,
+				"hybrid":         opts.Hybrid,
 			})
 			return
 		}
@@ -589,7 +594,11 @@ func StartEmulatorServer(opts ServerOptions) (*ServerInstance, error) {
 		modeLabel = "Simulated (Safe Dry-Run)"
 	}
 	uiLabel := "Loupedeck Emulator & Configuration Studio"
-	if opts.DeviceOnly {
+	if opts.Hybrid && opts.DeviceOnly {
+		uiLabel = "Loupedeck Hybrid Console (Physical + Device-Only Web UI)"
+	} else if opts.Hybrid {
+		uiLabel = "Loupedeck Hybrid Mode (Physical + Web Emulator Studio)"
+	} else if opts.DeviceOnly {
 		uiLabel = "Loupedeck Virtual Console (Device-Only)"
 	}
 	fmt.Printf("\n🎛️  %s running at: http://%s:%d\n", uiLabel, displayHost, actualPort)

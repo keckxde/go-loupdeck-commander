@@ -85,7 +85,9 @@ type cliArgs struct {
 	config     string
 	port       int
 	live       bool
+	dryRunSet  bool
 	deviceOnly bool
+	hybrid     bool
 	fix        bool
 	model      string
 }
@@ -105,7 +107,9 @@ func parseArgs(argv []string) cliArgs {
 		config:     "config/config.yaml",
 		port:       3080,
 		live:       false,
+		dryRunSet:  false,
 		deviceOnly: false,
+		hybrid:     false,
 		fix:        false,
 		model:      "live",
 	}
@@ -115,12 +119,28 @@ func parseArgs(argv []string) cliArgs {
 		if !strings.HasPrefix(token, "-") {
 			lower := strings.ToLower(token)
 			switch lower {
+			case "hybrid", "both", "mirror", "dual":
+				args.command = "hybrid"
+				args.hybrid = true
+				if !args.dryRunSet {
+					args.live = true
+				}
 			case "emulate", "emulator", "validate", "help", "version", "run":
-				args.command = lower
+				if args.hybrid && (lower == "emulate" || lower == "emulator" || lower == "run") {
+					args.command = "hybrid"
+				} else {
+					args.command = lower
+				}
 			case "panel", "device", "kiosk":
-				args.command = "panel"
-				args.live = true
 				args.deviceOnly = true
+				if !args.dryRunSet {
+					args.live = true
+				}
+				if args.hybrid {
+					args.command = "hybrid"
+				} else {
+					args.command = "panel"
+				}
 			default:
 				args.config = token
 				explicitConfig = true
@@ -163,13 +183,33 @@ func parseArgs(argv []string) cliArgs {
 			if p, err := strconv.Atoi(pStr); err == nil && p > 0 {
 				args.port = p
 			}
+		case "hybrid", "both", "mirror", "dual", "with-hardware", "hardware", "physical", "with-emulator":
+			isTrue := !hasEq || val == "" || strings.EqualFold(val, "true")
+			args.hybrid = isTrue
+			if isTrue {
+				args.command = "hybrid"
+				if !args.dryRunSet {
+					args.live = true
+				}
+			}
 		case "live":
 			args.live = !hasEq || val == "" || strings.EqualFold(val, "true")
+			args.dryRunSet = true
+		case "dry-run", "dryrun":
+			isDry := !hasEq || val == "" || strings.EqualFold(val, "true")
+			args.live = !isDry
+			args.dryRunSet = true
 		case "device-only", "device", "panel", "kiosk":
 			args.deviceOnly = !hasEq || val == "" || strings.EqualFold(val, "true")
-			if args.command == "run" {
-				args.command = "panel"
-				args.live = true
+			if args.command == "run" || args.command == "hybrid" {
+				if args.hybrid {
+					args.command = "hybrid"
+				} else {
+					args.command = "panel"
+				}
+				if !args.dryRunSet {
+					args.live = true
+				}
 			}
 		case "fix":
 			args.fix = !hasEq || val == "" || strings.EqualFold(val, "true")
@@ -178,7 +218,11 @@ func parseArgs(argv []string) cliArgs {
 		case "validate":
 			args.command = "validate"
 		case "emulate", "emulator":
-			args.command = "emulate"
+			if args.hybrid {
+				args.command = "hybrid"
+			} else {
+				args.command = "emulate"
+			}
 		case "version", "v":
 			args.command = "version"
 		case "help", "h":
@@ -205,6 +249,7 @@ Usage:
 Commands:
   run         Start the Loupedeck Commander hardware daemon (default)
   emulate     Start the interactive Web Emulator & Configuration Studio
+  hybrid      Start both physical hardware & Web Emulator simultaneously (alias: both)
   panel       Start the Web Emulator in Live Mode showing only the device console (no Studio UI)
   validate    Validate configuration & profile files for errors and deprecations
   version     Print version, git tag/commit, and build metadata
@@ -214,11 +259,18 @@ Options:
   --config=<file>   Application config file (default: config/config.yaml or config/config-<hostname>.yaml)
   --host=<hostname> Resolve config/config-<hostname>.yaml
   --port=<number>   HTTP port for the Web Emulator (default: 3080)
-  --live            Execute real Shell/HTTP/OPC UA calls in emulator mode
+  --hybrid, --both  Run physical hardware & Web Emulator simultaneously (defaults to live mode)
+  --live            Execute real Shell/HTTP/OPC UA calls in emulator/hybrid mode
+  --dry-run         Simulate Shell/HTTP/OPC UA calls instead of executing them
   --device-only     Show only the Loupedeck device in the web UI (hide Studio/Config panels)
   --model=<model>   Emulated device model: live | ct | live-s | razer | razer-x (default: live)
   --fix             Automatically fix deprecated button attributes & typos during 'validate'
   --version, -v     Print version information and exit
+
+Examples:
+  loupedeck-commander hybrid config/config.yaml
+  loupedeck-commander both --device-only
+  loupedeck-commander hybrid --dry-run --port=3080
 `, Version)
 }
 
@@ -333,7 +385,7 @@ func main() {
 		return
 	case "validate":
 		os.Exit(runValidate(args))
-	case "emulate", "emulator", "panel", "device", "kiosk":
+	case "emulate", "emulator", "panel", "device", "kiosk", "hybrid", "both", "mirror", "dual":
 		fmt.Println(formatVersion())
 		dryRun := !args.live
 		srv, err := emulator.StartEmulatorServer(emulator.ServerOptions{
@@ -342,6 +394,7 @@ func main() {
 			DryRun:     &dryRun,
 			Model:      args.model,
 			DeviceOnly: args.deviceOnly,
+			Hybrid:     args.hybrid || args.command == "hybrid",
 		})
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to start emulator server: %v\n", err)

@@ -31,7 +31,9 @@ type LayoutCompatibility struct {
 
 type HandlerOptions struct {
 	Device             device.Device
+	HardwareDevice     device.Device
 	Emulate            bool
+	Hybrid             bool
 	Model              string
 	DryRun             bool
 	AllowInvalidConfig bool
@@ -46,7 +48,12 @@ type BaseLoupeDeckHandler struct {
 	Mu                  sync.RWMutex
 	Device              device.Device
 	EmulatedDevice      *device.EmulatedLoupedeckDevice
+	HybridDevice        *device.HybridLoupedeckDevice
+	HardwareDevice      device.Device
 	Emulated            bool
+	Hybrid              bool
+	HardwareConnected   bool
+	HardwareAddress     string
 	ConfigFile          string
 	BaseDir             string
 	AppConfig           *config.ApplicationConfig
@@ -77,7 +84,7 @@ type BaseLoupeDeckHandler struct {
 func NewBaseLoupeDeckHandler(configFile string, opts HandlerOptions) (*BaseLoupeDeckHandler, error) {
 	fmt.Printf("INIT with config %s\n", configFile)
 
-	autoReconnect := !(opts.Device != nil || opts.Emulate)
+	autoReconnect := !(opts.Device != nil || opts.Emulate) || (opts.Hybrid && opts.HardwareDevice == nil)
 	if opts.AutoReconnect != nil {
 		autoReconnect = *opts.AutoReconnect
 	}
@@ -116,7 +123,30 @@ func NewBaseLoupeDeckHandler(configFile string, opts HandlerOptions) (*BaseLoupe
 		return nil, fmt.Errorf("failed to load configuration %s", configFile)
 	}
 
-	if opts.Device != nil {
+	if opts.Hybrid {
+		defaultModel := opts.Model
+		if defaultModel == "" && h.AppConfig != nil && h.AppConfig.Layout.DeviceID != "" {
+			defaultModel = h.AppConfig.Layout.DeviceID
+		}
+		if defaultModel == "" {
+			defaultModel = "live"
+		}
+		var emu *device.EmulatedLoupedeckDevice
+		if e, ok := opts.Device.(*device.EmulatedLoupedeckDevice); ok {
+			emu = e
+		} else if hyb, ok := opts.Device.(*device.HybridLoupedeckDevice); ok && hyb.Emulated != nil {
+			emu = hyb.Emulated
+		} else {
+			emu = device.NewEmulatedLoupedeckDevice(device.EmulatedDeviceOptions{Model: defaultModel})
+		}
+		hyb := device.NewHybridLoupedeckDevice(emu, opts.HardwareDevice)
+		h.Hybrid = true
+		h.HybridDevice = hyb
+		h.EmulatedDevice = emu
+		h.HardwareDevice = opts.HardwareDevice
+		h.Device = hyb
+		h.Emulated = true
+	} else if opts.Device != nil {
 		h.Device = opts.Device
 		if emu, isEmu := opts.Device.(*device.EmulatedLoupedeckDevice); isEmu {
 			h.EmulatedDevice = emu
@@ -222,7 +252,34 @@ func (h *BaseLoupeDeckHandler) Start() error {
 	h.Stopping = false
 	dev := h.Device
 	emulated := h.Emulated
+	hybrid := h.Hybrid
+	hybDev := h.HybridDevice
+	emuDev := h.EmulatedDevice
+	hwDev := h.HardwareDevice
 	h.Mu.Unlock()
+
+	if hybrid && hybDev != nil {
+		h.attachEmulatedListeners(emuDev)
+		_ = emuDev.Connect()
+		if hwDev != nil {
+			if hw, ok := hwDev.(*device.HardwareLoupedeckDevice); ok {
+				h.attachHardwareListeners(hw)
+			}
+			err := hwDev.Connect()
+			if err == nil {
+				h.Mu.Lock()
+				h.HardwareConnected = true
+				addr := h.HardwareAddress
+				h.Mu.Unlock()
+				if _, ok := hwDev.(*device.HardwareLoupedeckDevice); !ok && addr == "" {
+					h.OnConnected("hardware://custom")
+				}
+			}
+			return err
+		}
+		go h.connectToDeviceLoop()
+		return nil
+	}
 
 	if emulated && h.EmulatedDevice != nil {
 		h.attachEmulatedListeners(h.EmulatedDevice)
@@ -271,21 +328,45 @@ func (h *BaseLoupeDeckHandler) attachHardwareListeners(hw *device.HardwareLouped
 	}
 	hw.OnDown = func(id interface{}) {
 		h.OnButtonDown(id)
+		h.UpdateScreens(false)
+		if h.OnStateChange != nil {
+			h.OnStateChange()
+		}
 	}
 	hw.OnUp = func(id interface{}) {
 		h.OnButtonUp(id)
+		h.UpdateScreens(false)
+		if h.OnStateChange != nil {
+			h.OnStateChange()
+		}
 	}
 	hw.OnRotate = func(id string, delta int) {
 		h.OnRotate(id, delta)
+		h.UpdateScreens(false)
+		if h.OnStateChange != nil {
+			h.OnStateChange()
+		}
 	}
 	hw.OnTouchStart = func(data device.TouchEventData) {
 		h.OnTouchStart(data)
+		h.UpdateScreens(false)
+		if h.OnStateChange != nil {
+			h.OnStateChange()
+		}
 	}
 	hw.OnTouchMove = func(data device.TouchEventData) {
 		h.OnTouchMove(data)
+		h.UpdateScreens(false)
+		if h.OnStateChange != nil {
+			h.OnStateChange()
+		}
 	}
 	hw.OnTouchEnd = func(data device.TouchEventData) {
 		h.OnTouchEnd(data)
+		h.UpdateScreens(false)
+		if h.OnStateChange != nil {
+			h.OnStateChange()
+		}
 	}
 	hw.OnDisconnect = func(err error) {
 		h.onHardwareDisconnect(err)
@@ -296,6 +377,25 @@ func (h *BaseLoupeDeckHandler) onHardwareDisconnect(err error) {
 	h.Mu.Lock()
 	if h.Stopping {
 		h.Mu.Unlock()
+		return
+	}
+	if h.Hybrid && h.HybridDevice != nil {
+		h.HardwareDevice = nil
+		h.HardwareConnected = false
+		h.HardwareAddress = ""
+		h.HybridDevice.SetHardwareDevice(nil)
+		autoRec := h.AutoReconnect
+		h.Mu.Unlock()
+
+		if err != nil {
+			fmt.Printf("Connection to Loupedeck lost (%v)\n", err)
+		}
+		if h.OnStateChange != nil {
+			h.OnStateChange()
+		}
+		if autoRec {
+			go h.connectToDeviceLoop()
+		}
 		return
 	}
 	if h.tickerStopCh != nil {
@@ -323,6 +423,8 @@ func (h *BaseLoupeDeckHandler) connectToDeviceLoop() {
 		h.Mu.RLock()
 		stopping := h.Stopping
 		delay := h.ReconnectDelayMs
+		isHybrid := h.Hybrid && h.HybridDevice != nil
+		hybDev := h.HybridDevice
 		h.Mu.RUnlock()
 		if stopping {
 			return
@@ -333,19 +435,44 @@ func (h *BaseLoupeDeckHandler) connectToDeviceLoop() {
 			selected := h.selectCandidatePort(ports)
 			hw := device.NewHardwareLoupedeckDevice(selected)
 			h.attachHardwareListeners(hw)
-			h.Mu.Lock()
-			h.Device = hw
-			h.Mu.Unlock()
-			if err := hw.Connect(); err == nil {
+			if isHybrid {
 				h.Mu.Lock()
-				h.reconnecting = false
+				h.HardwareDevice = hw
+				hybDev.SetHardwareDevice(hw)
 				h.Mu.Unlock()
-				return
+				if err := hw.Connect(); err == nil {
+					h.Mu.Lock()
+					h.reconnecting = false
+					h.HardwareConnected = true
+					h.HardwareAddress = selected.Path
+					h.Mu.Unlock()
+					if h.OnStateChange != nil {
+						h.OnStateChange()
+					}
+					return
+				}
+				_ = hw.Close()
+				h.Mu.Lock()
+				h.HardwareDevice = nil
+				h.HardwareConnected = false
+				h.HardwareAddress = ""
+				hybDev.SetHardwareDevice(nil)
+				h.Mu.Unlock()
+			} else {
+				h.Mu.Lock()
+				h.Device = hw
+				h.Mu.Unlock()
+				if err := hw.Connect(); err == nil {
+					h.Mu.Lock()
+					h.reconnecting = false
+					h.Mu.Unlock()
+					return
+				}
+				_ = hw.Close()
+				h.Mu.Lock()
+				h.Device = nil
+				h.Mu.Unlock()
 			}
-			_ = hw.Close()
-			h.Mu.Lock()
-			h.Device = nil
-			h.Mu.Unlock()
 		}
 
 		select {
@@ -759,6 +886,7 @@ func (h *BaseLoupeDeckHandler) OnConnected(address string) {
 	dev := h.Device
 	stopping := h.Stopping
 	emulated := h.Emulated
+	hybrid := h.Hybrid
 	brightness := h.Brightness
 	curProf := h.CurrentProfile
 	numProfs := 1
@@ -771,9 +899,18 @@ func (h *BaseLoupeDeckHandler) OnConnected(address string) {
 		return
 	}
 
+	if address != "emulator://localhost" && hybrid {
+		h.Mu.Lock()
+		h.HardwareConnected = true
+		h.HardwareAddress = address
+		h.reconnecting = false
+		h.Mu.Unlock()
+	}
+
 	fmt.Printf("✅ Connected to %s, %s\n", dev.GetType(), address)
 
-	if !emulated {
+	isHardwareConnect := !emulated || address != "emulator://localhost"
+	if isHardwareConnect {
 		time.Sleep(20 * time.Millisecond)
 	}
 
@@ -792,7 +929,7 @@ func (h *BaseLoupeDeckHandler) OnConnected(address string) {
 	_ = h.ChangeBrightness(targetBrightness)
 	_ = h.Vibrate(device.HAPTIC["ASCEND_MED"])
 
-	if !emulated {
+	if isHardwareConnect {
 		go func(tb float64) {
 			time.Sleep(300 * time.Millisecond)
 			h.Mu.RLock()
@@ -830,6 +967,10 @@ func (h *BaseLoupeDeckHandler) OnConnected(address string) {
 	}()
 
 	fmt.Println("✅ Done initializing")
+
+	if h.OnStateChange != nil {
+		h.OnStateChange()
+	}
 }
 
 func (h *BaseLoupeDeckHandler) UpdateScreens(force bool) {
@@ -1140,6 +1281,17 @@ func (h *BaseLoupeDeckHandler) SetEmulatedModel(model string) error {
 	emu := device.NewEmulatedLoupedeckDevice(device.EmulatedDeviceOptions{Model: model})
 	h.attachEmulatedListeners(emu)
 	h.Mu.Lock()
+	if h.Hybrid && h.HybridDevice != nil {
+		h.EmulatedDevice = emu
+		h.HybridDevice.SetEmulatedDevice(emu)
+		curProf := h.CurrentProfile
+		h.Mu.Unlock()
+
+		_ = emu.Connect()
+		_ = h.ActivateProfile(curProf)
+		h.UpdateScreens(true)
+		return nil
+	}
 	h.Device = emu
 	h.EmulatedDevice = emu
 	h.Emulated = true
@@ -1167,6 +1319,9 @@ func (h *BaseLoupeDeckHandler) GetSnapshot() map[string]interface{} {
 	dev := h.Device
 	emu := h.EmulatedDevice
 	reconnecting := h.reconnecting
+	hybrid := h.Hybrid
+	hwConn := h.HardwareConnected
+	hwAddr := h.HardwareAddress
 	h.Mu.RUnlock()
 
 	var prof *config.Profile
@@ -1237,7 +1392,17 @@ func (h *BaseLoupeDeckHandler) GetSnapshot() map[string]interface{} {
 
 	var devSnap interface{}
 	if emu != nil {
-		devSnap = emu.GetSnapshot()
+		emuSnap := emu.GetSnapshot()
+		if hybrid {
+			if dev != nil {
+				emuSnap["type"] = dev.GetType()
+			}
+			emuSnap["hybrid"] = true
+			emuSnap["hardwareConnected"] = hwConn
+			emuSnap["hardwareAddress"] = hwAddr
+			emuSnap["reconnecting"] = reconnecting
+		}
+		devSnap = emuSnap
 	} else if dev != nil {
 		devSnap = map[string]interface{}{
 			"type":         dev.GetType(),
@@ -1264,6 +1429,7 @@ func (h *BaseLoupeDeckHandler) GetSnapshot() map[string]interface{} {
 		"activeProfileName":   activeProfName,
 		"fields":              fieldsMap,
 		"device":              devSnap,
+		"hybrid":              hybrid,
 		"opcua":               h.Ifaces.OPCUA.GetSubscriptionsSnapshot(),
 	}
 }

@@ -1669,6 +1669,11 @@
       const prevProfile = appState.snapshot?.currentProfile;
       appState.snapshot = snapshot;
 
+      if (snapshot.device?.type) {
+        const modelLabel = document.getElementById('deviceModelLabel');
+        if (modelLabel) modelLabel.textContent = snapshot.device.type;
+      }
+
       // Update screens
       const screens = snapshot.device?.screens || {};
       if (screens.center) document.getElementById('screenCenterImg').src = screens.center;

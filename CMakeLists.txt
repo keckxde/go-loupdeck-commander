@@ -35,6 +35,7 @@ option(ENABLE_TESTING "Enable Go unit tests via CTest" ON)
 option(ENABLE_RACE_DETECTOR "Run Go tests with -race detector enabled" OFF)
 option(GENERATE_INSTALLER "Configure CPack package generation (DEB/TGZ/ZIP)" ON)
 option(SYNC_ROOT_BINARY "Also copy the built binary to the project root directory" ON)
+option(ENABLE_SYMLINKS "Create symbolic link shortcuts (e.g. loupedeck-emulator); set OFF on exFAT/FAT32 filesystems" ON)
 
 set(BINARY_NAME "loupedeck-commander" CACHE STRING "Base name of the output binary")
 set(CMD_PKG "./cmd/loupedeck-commander" CACHE STRING "Go main package path to build")
@@ -112,19 +113,52 @@ if(GO_BUILD)
     else()
         set(EMULATOR_SHORTCUT_FILENAME "loupedeck-emulator")
         set(EMULATOR_SHORTCUT_PATH "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${EMULATOR_SHORTCUT_FILENAME}")
-        set(CREATE_EMULATOR_LINK_CMD
-            COMMAND ${CMAKE_COMMAND} -E create_symlink
-            "${OUTPUT_BINARY_FILENAME}"
-            "${EMULATOR_SHORTCUT_PATH}"
-        )
-        if(SYNC_ROOT_BINARY)
-            set(SYNC_ROOT_LINK_CMD
+
+        set(USE_SYMLINKS ${ENABLE_SYMLINKS})
+        if(USE_SYMLINKS)
+            set(_SYMLINK_PROBE "${CMAKE_CURRENT_BINARY_DIR}/.cmake_symlink_probe")
+            execute_process(
+                COMMAND ${CMAKE_COMMAND} -E create_symlink "${VERSION_STAMP_FILE}" "${_SYMLINK_PROBE}"
+                RESULT_VARIABLE _SYMLINK_RES
+                ERROR_QUIET
+            )
+            file(REMOVE "${_SYMLINK_PROBE}")
+            if(NOT _SYMLINK_RES EQUAL 0)
+                message(STATUS "Filesystem does not support symbolic links (e.g. exFAT/FAT32) — falling back to wrapper script instead of symlinks")
+                set(USE_SYMLINKS OFF)
+            endif()
+        endif()
+
+        if(USE_SYMLINKS)
+            set(CREATE_EMULATOR_LINK_CMD
                 COMMAND ${CMAKE_COMMAND} -E create_symlink
                 "${OUTPUT_BINARY_FILENAME}"
-                "${CMAKE_CURRENT_SOURCE_DIR}/${EMULATOR_SHORTCUT_FILENAME}"
+                "${EMULATOR_SHORTCUT_PATH}"
             )
+            if(SYNC_ROOT_BINARY)
+                set(SYNC_ROOT_LINK_CMD
+                    COMMAND ${CMAKE_COMMAND} -E create_symlink
+                    "${OUTPUT_BINARY_FILENAME}"
+                    "${CMAKE_CURRENT_SOURCE_DIR}/${EMULATOR_SHORTCUT_FILENAME}"
+                )
+            else()
+                set(SYNC_ROOT_LINK_CMD "")
+            endif()
         else()
-            set(SYNC_ROOT_LINK_CMD "")
+            file(WRITE "${EMULATOR_SHORTCUT_PATH}" "#!/usr/bin/env sh\nexec \"$(dirname \"$0\")/${OUTPUT_BINARY_FILENAME}\" emulate \"$@\"\n")
+            file(CHMOD "${EMULATOR_SHORTCUT_PATH}"
+                PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
+            )
+            set(CREATE_EMULATOR_LINK_CMD "")
+            if(SYNC_ROOT_BINARY)
+                set(SYNC_ROOT_LINK_CMD
+                    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${EMULATOR_SHORTCUT_PATH}"
+                    "${CMAKE_CURRENT_SOURCE_DIR}/${EMULATOR_SHORTCUT_FILENAME}"
+                )
+            else()
+                set(SYNC_ROOT_LINK_CMD "")
+            endif()
         endif()
     endif()
 

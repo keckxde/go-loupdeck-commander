@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -283,6 +284,243 @@ func TestLiveOPCUAConnectionAndSessionReuse(t *testing.T) {
 	opc.Init(opts, nil)
 	if !opc.GetSubscriptionsSnapshot().Connected {
 		t.Fatalf("expected OPCUAIf session reuse on profile switch to stay connected")
+	}
+}
+
+type mockPhysicalDevice struct {
+	mu           sync.RWMutex
+	connected    bool
+	closed       bool
+	brightness   float64
+	vibrations   []byte
+	buttonColors map[string]string
+	screenDraws  map[string]int
+	screenData   map[string]string
+	displays     map[string]device.DisplayInfo
+	buttons      []interface{}
+	knobs        []string
+}
+
+func newMockPhysicalDevice() *mockPhysicalDevice {
+	return &mockPhysicalDevice{
+		buttonColors: make(map[string]string),
+		screenDraws:  make(map[string]int),
+		screenData:   make(map[string]string),
+		displays: map[string]device.DisplayInfo{
+			"center": {Width: 360, Height: 270},
+			"left":   {Width: 60, Height: 270},
+			"right":  {Width: 60, Height: 270},
+		},
+		buttons: []interface{}{0, 1, 2, 3, 4, 5, 6, 7},
+		knobs:   []string{"knobTL", "knobCL", "knobBL", "knobTR", "knobCR", "knobBR"},
+	}
+}
+
+func (m *mockPhysicalDevice) GetType() string                     { return "Loupedeck Live" }
+func (m *mockPhysicalDevice) GetModel() string                    { return "live" }
+func (m *mockPhysicalDevice) GetRows() int                        { return 3 }
+func (m *mockPhysicalDevice) GetColumns() int                     { return 4 }
+func (m *mockPhysicalDevice) GetKeySize() int                     { return 90 }
+func (m *mockPhysicalDevice) GetVisibleX() [2]int                 { return [2]int{0, 480} }
+func (m *mockPhysicalDevice) GetDisplays() map[string]device.DisplayInfo { return m.displays }
+func (m *mockPhysicalDevice) GetButtons() []interface{}           { return m.buttons }
+func (m *mockPhysicalDevice) GetKnobs() []string                  { return m.knobs }
+func (m *mockPhysicalDevice) Connect() error {
+	m.mu.Lock()
+	m.connected = true
+	m.mu.Unlock()
+	return nil
+}
+func (m *mockPhysicalDevice) Close() error {
+	m.mu.Lock()
+	m.connected = false
+	m.closed = true
+	m.mu.Unlock()
+	return nil
+}
+func (m *mockPhysicalDevice) SetBrightness(value float64) error {
+	m.mu.Lock()
+	m.brightness = value
+	m.mu.Unlock()
+	return nil
+}
+func (m *mockPhysicalDevice) Vibrate(pattern byte) error {
+	m.mu.Lock()
+	m.vibrations = append(m.vibrations, pattern)
+	m.mu.Unlock()
+	return nil
+}
+func (m *mockPhysicalDevice) SetButtonColor(id interface{}, color string) error {
+	m.mu.Lock()
+	m.buttonColors[config.ToString(id)] = color
+	m.mu.Unlock()
+	return nil
+}
+func (m *mockPhysicalDevice) DrawScreen(screenName string, drawCallback func(ctx *device.Context2D) error) error {
+	dim, ok := m.displays[screenName]
+	if !ok {
+		return nil
+	}
+	c := device.NewCanvas(dim.Width, dim.Height)
+	ctx := c.GetContext2D()
+	ctx.FillStyle = "#000000"
+	ctx.FillRect(0, 0, float64(dim.Width), float64(dim.Height))
+	if drawCallback != nil {
+		if err := drawCallback(ctx); err != nil {
+			return err
+		}
+	}
+	dataURL := c.ToDataURL()
+	m.mu.Lock()
+	m.screenDraws[screenName]++
+	m.screenData[screenName] = dataURL
+	m.mu.Unlock()
+	return nil
+}
+func (m *mockPhysicalDevice) GetScreenDataURL(screenName string) string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.screenData[screenName]
+}
+
+func TestHybridModePhysicalAndEmulatedSync(t *testing.T) {
+	repoRoot := resolveTestRepoRoot(t)
+	mockHW := newMockPhysicalDevice()
+	dryRun := true
+
+	srv, err := emulator.StartEmulatorServer(emulator.ServerOptions{
+		Config:         "config/config.yaml",
+		Port:           0,
+		Host:           "127.0.0.1",
+		DryRun:         &dryRun,
+		BaseDir:        repoRoot,
+		Hybrid:         true,
+		HardwareDevice: mockHW,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer srv.Close()
+
+	baseURL := "http://127.0.0.1:" + config.ToString(srv.Port)
+
+	// 1. Verify /api/state reports hybrid: true and hardwareConnected: true
+	resp, err := http.Get(baseURL + "/api/state")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 OK from /api/state, got %d", resp.StatusCode)
+	}
+	var statePayload map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&statePayload); err != nil {
+		t.Fatal(err)
+	}
+	if statePayload["hybrid"] != true {
+		t.Fatalf("expected /api/state hybrid == true, got %v", statePayload["hybrid"])
+	}
+	snap, ok := statePayload["snapshot"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected snapshot object in /api/state")
+	}
+	if snap["hybrid"] != true {
+		t.Fatalf("expected snapshot.hybrid == true, got %v", snap["hybrid"])
+	}
+	devSnap, ok := snap["device"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected snapshot.device object in /api/state")
+	}
+	if devSnap["hybrid"] != true {
+		t.Fatalf("expected snapshot.device.hybrid == true, got %v", devSnap["hybrid"])
+	}
+	if devSnap["hardwareConnected"] != true {
+		t.Fatalf("expected snapshot.device.hardwareConnected == true, got %v", devSnap["hardwareConnected"])
+	}
+
+	// 2. Verify initial screen draws & button LED colors synced to both emulated and physical devices
+	mockHW.mu.RLock()
+	hwConnected := mockHW.connected
+	hwBtn1 := mockHW.buttonColors["1"]
+	hwBtn2 := mockHW.buttonColors["2"]
+	hwCenterDraws := mockHW.screenDraws["center"]
+	hwCenterURL := mockHW.screenData["center"]
+	mockHW.mu.RUnlock()
+
+	if !hwConnected {
+		t.Fatalf("expected mock hardware device to be connected")
+	}
+	if hwCenterDraws == 0 || hwCenterURL == "" {
+		t.Fatalf("expected center screen to be drawn on mock hardware device")
+	}
+	if hwCenterURL != srv.EmulatedDevice.GetScreenDataURL("center") {
+		t.Fatalf("expected center screen data URL to match between emulated and hardware devices")
+	}
+
+	emuSnap := srv.EmulatedDevice.GetSnapshot()
+	emuBtnColors := emuSnap["buttonColors"].(map[string]string)
+	if hwBtn1 != "rgba(0, 255, 0)" || emuBtnColors["1"] != "rgba(0, 255, 0)" {
+		t.Fatalf("expected button 1 LED rgba(0, 255, 0) on both devices, got hw=%q emu=%q", hwBtn1, emuBtnColors["1"])
+	}
+	if hwBtn2 != "rgba(0, 0, 85)" || emuBtnColors["2"] != "rgba(0, 0, 85)" {
+		t.Fatalf("expected button 2 LED rgba(0, 0, 85) on both devices, got hw=%q emu=%q", hwBtn2, emuBtnColors["2"])
+	}
+
+	// 3. Verify brightness & vibration sync to both devices
+	if err := srv.Handler.ChangeBrightness(0.55); err != nil {
+		t.Fatal(err)
+	}
+	if err := srv.Handler.Vibrate(device.HAPTIC["SHORT"]); err != nil {
+		t.Fatal(err)
+	}
+	mockHW.mu.RLock()
+	hwBrightness := mockHW.brightness
+	hwVibCount := len(mockHW.vibrations)
+	hwLastVib := byte(0)
+	if hwVibCount > 0 {
+		hwLastVib = mockHW.vibrations[hwVibCount-1]
+	}
+	mockHW.mu.RUnlock()
+
+	srv.EmulatedDevice.Mu.RLock()
+	emuBrightness := srv.EmulatedDevice.Brightness
+	emuLastVib := srv.EmulatedDevice.LastVibration
+	srv.EmulatedDevice.Mu.RUnlock()
+
+	if hwBrightness != 0.55 || emuBrightness != 0.55 {
+		t.Fatalf("expected brightness 0.55 on both devices, got hw=%v emu=%v", hwBrightness, emuBrightness)
+	}
+	if hwVibCount == 0 || hwLastVib != device.HAPTIC["SHORT"] || emuLastVib == nil || emuLastVib.Pattern != device.HAPTIC["SHORT"] {
+		t.Fatalf("expected vibration SHORT synced to both devices, got hw=%v emu=%+v", hwLastVib, emuLastVib)
+	}
+
+	// 4. Verify button input triggers profile switch and syncs LEDs and screens on both devices
+	beforeCenterURL := srv.EmulatedDevice.GetScreenDataURL("center")
+	srv.EmulatedDevice.TriggerButtonDown(2)
+	srv.EmulatedDevice.TriggerButtonUp(2)
+	srv.Handler.UpdateScreens(false)
+
+	if srv.Handler.CurrentProfile != 1 {
+		t.Fatalf("expected CurrentProfile == 1 after button 2 press, got %d", srv.Handler.CurrentProfile)
+	}
+
+	mockHW.mu.RLock()
+	hwBtn2After := mockHW.buttonColors["2"]
+	hwCenterAfter := mockHW.screenData["center"]
+	mockHW.mu.RUnlock()
+	emuBtnColorsAfter := srv.EmulatedDevice.GetSnapshot()["buttonColors"].(map[string]string)
+
+	if hwBtn2After != "rgba(0, 255, 0)" || emuBtnColorsAfter["2"] != "rgba(0, 255, 0)" {
+		t.Fatalf("expected button 2 LED rgba(0, 255, 0) on both devices after profile switch, got hw=%q emu=%q", hwBtn2After, emuBtnColorsAfter["2"])
+	}
+	if hwCenterAfter == beforeCenterURL || hwCenterAfter != srv.EmulatedDevice.GetScreenDataURL("center") {
+		t.Fatalf("expected center screen to update and match on both devices after profile switch")
+	}
+
+	// 5. Verify waiting-for-hardware GetType() when hardware disconnects in hybrid mode
+	srv.Handler.HybridDevice.SetHardwareDevice(nil)
+	if gotType := srv.Handler.HybridDevice.GetType(); gotType != "Loupedeck Live (Hybrid - Waiting for Hardware)" {
+		t.Fatalf("unexpected GetType() without hardware: %q", gotType)
 	}
 }
 

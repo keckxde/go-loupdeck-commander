@@ -8,6 +8,7 @@
 
 - **Hardware Daemon (`run`)**: Direct serial/WebSocket-framed communication with physical Loupedeck & Razer consoles, including automatic USB discovery, hotplug reconnect, RGB565 screen rendering, haptic feedback, and physical button/knob handling.
 - **Interactive Web Emulator & Configuration Studio (`emulate`)**: Built-in HTTP/SSE web server with an embedded UI (`pkg/emulator/emulator-ui.html`) for visual profile editing, live or dry-run button/knob/touch testing, OPC UA node simulation, and YAML/JSON export.
+- **Hybrid Mode (`hybrid` / `both`)**: Runs physical hardware and the Web Emulator simultaneously, keeping screens, button LEDs, brightness, haptics, and inputs synchronized in real time (with automatic USB hotplug reconnect while the emulator remains active).
 - **Configuration Validator & Auto-Fix (`validate`)**: Validates application configs and profile files for schema issues, missing references, and deprecated attributes (`--fix` automatically upgrades legacy profile syntax).
 - **Multi-Protocol Interfaces**:
   - **OPC UA** (`github.com/gopcua/opcua`): Monitored item subscriptions, session reuse across profile switches, and read/write calls.
@@ -73,6 +74,7 @@ loupedeck-emulator [config-file] [options]  # Direct shortcut for 'loupedeck-com
 | :--------- | :--------------------------------------------------------------------------------------- |
 | `run`      | Start the Loupedeck Commander hardware daemon *(default)*                                |
 | `emulate`  | Start the interactive Web Emulator & Configuration Studio                                |
+| `hybrid`   | Start physical hardware & Web Emulator simultaneously (alias: `both`, defaults to live)  |
 | `panel`    | Start the Web Emulator in **Live Mode** showing only the device console (no Studio UI)   |
 | `validate` | Validate configuration and profile files for errors and deprecations                     |
 | `version`  | Print version, Git tag/commit, Go toolchain, and build timestamp                         |
@@ -85,7 +87,9 @@ loupedeck-emulator [config-file] [options]  # Direct shortcut for 'loupedeck-com
 | `--config=<file>`, `-c` | Application config file (default: `config/config.yaml` or `config/config-<hostname>.yaml`)  |
 | `--host=<hostname>`     | Resolve `config/config-<hostname>.yaml`                                                     |
 | `--port=<number>`, `-p` | HTTP port for the Web Emulator (default: `3080`)                                            |
-| `--live`                | Execute real Shell/HTTP/OPC UA calls in emulator mode (default is safe dry-run)             |
+| `--hybrid`, `--both`    | Run physical hardware & Web Emulator simultaneously (defaults to live execution mode)       |
+| `--live`                | Execute real Shell/HTTP/OPC UA calls in emulator/hybrid mode (default in `hybrid`/`panel`)  |
+| `--dry-run`             | Simulate Shell/HTTP/OPC UA calls instead of executing them (useful with `hybrid --dry-run`) |
 | `--device-only`         | Show only the Loupedeck device in the web UI (hide Studio, config editor & log panels)      |
 | `--model=<model>`       | Emulated device model: `live` \| `ct` \| `live-s` \| `razer` \| `razer-x` (default: `live`) |
 | `--fix`                 | Automatically fix deprecated button attributes & typos during `validate`                    |
@@ -106,6 +110,10 @@ loupedeck-emulator [config-file] [options]  # Direct shortcut for 'loupedeck-com
 
 # Or with custom config & options on port 3080 (safe dry-run mode)
 ./loupedeck-emulator config/config.yaml --port=3080
+
+# Launch Hybrid Mode (physical hardware + Web Emulator Studio synchronized, live mode)
+./loupedeck-commander hybrid config/config.yaml
+# (or: ./loupedeck-commander both --device-only, or safely test with: ./loupedeck-commander hybrid --dry-run)
 
 # Launch Web Emulator in Live Mode showing ONLY the virtual device console (no Studio UI)
 ./loupedeck-commander panel config/config.yaml

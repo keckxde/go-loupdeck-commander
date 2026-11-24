@@ -27,6 +27,10 @@ func TestParseArgsVersionAndCommands(t *testing.T) {
 		{name: "loupedeck-emulator panel mode", argv: []string{"loupedeck-emulator", "panel"}, wantCmd: "panel"},
 		{name: "loupedeck-emulator positional config", argv: []string{"loupedeck-emulator", "config/config.yaml"}, wantCmd: "emulate", wantCfg: "config/config.yaml"},
 		{name: "loupedeck-emulator path shortcut", argv: []string{"/usr/bin/loupedeck-emulator", "--port=4000"}, wantCmd: "emulate"},
+		{name: "hybrid command", argv: []string{"loupedeck-commander", "hybrid"}, wantCmd: "hybrid"},
+		{name: "both alias command", argv: []string{"loupedeck-commander", "both", "config/config.yaml"}, wantCmd: "hybrid", wantCfg: "config/config.yaml"},
+		{name: "hybrid flag", argv: []string{"loupedeck-commander", "--hybrid"}, wantCmd: "hybrid"},
+		{name: "both flag", argv: []string{"loupedeck-commander", "--both"}, wantCmd: "hybrid"},
 	}
 
 	for _, tc := range tests {
@@ -40,6 +44,50 @@ func TestParseArgsVersionAndCommands(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestParseArgsHybridFlags(t *testing.T) {
+	t.Run("hybrid defaults to live", func(t *testing.T) {
+		got := parseArgs([]string{"loupedeck-commander", "hybrid"})
+		if got.command != "hybrid" || !got.hybrid || !got.live || got.deviceOnly {
+			t.Fatalf("unexpected parseArgs result for hybrid: %+v", got)
+		}
+	})
+
+	t.Run("both alias defaults to live", func(t *testing.T) {
+		got := parseArgs([]string{"loupedeck-commander", "both"})
+		if got.command != "hybrid" || !got.hybrid || !got.live {
+			t.Fatalf("unexpected parseArgs result for both: %+v", got)
+		}
+	})
+
+	t.Run("--hybrid flag defaults to live", func(t *testing.T) {
+		got := parseArgs([]string{"loupedeck-commander", "--hybrid"})
+		if got.command != "hybrid" || !got.hybrid || !got.live {
+			t.Fatalf("unexpected parseArgs result for --hybrid: %+v", got)
+		}
+	})
+
+	t.Run("--both flag defaults to live", func(t *testing.T) {
+		got := parseArgs([]string{"loupedeck-commander", "--both"})
+		if got.command != "hybrid" || !got.hybrid || !got.live {
+			t.Fatalf("unexpected parseArgs result for --both: %+v", got)
+		}
+	})
+
+	t.Run("hybrid --device-only", func(t *testing.T) {
+		got := parseArgs([]string{"loupedeck-commander", "hybrid", "--device-only"})
+		if got.command != "hybrid" || !got.hybrid || !got.deviceOnly || !got.live {
+			t.Fatalf("unexpected parseArgs result for hybrid --device-only: %+v", got)
+		}
+	})
+
+	t.Run("hybrid --dry-run", func(t *testing.T) {
+		got := parseArgs([]string{"loupedeck-commander", "hybrid", "--dry-run"})
+		if got.command != "hybrid" || !got.hybrid || got.live {
+			t.Fatalf("unexpected parseArgs result for hybrid --dry-run: %+v", got)
+		}
+	})
 }
 
 func TestFormatVersion(t *testing.T) {
