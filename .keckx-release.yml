@@ -1,0 +1,27 @@
+# ==============================================================================
+# TS-ENGINEERING GmbH
+# Konfiguration & Synchronisations-Metadaten für keckx-sync
+# ==============================================================================
+project:
+  name: loupedeck-commander
+  languages:
+  - golang
+  - cpp
+sync:
+  cmake: true
+  agents: true
+  forgejo: true
+  gitattributes: true
+  gitignore: true
+  build_script: true
+workflows:
+  python: false
+  golang: true
+  cpp: true
+build:
+  clean: false
+  configure: true
+  build: true
+  test: true
+  pack: true
+last_sync: null
