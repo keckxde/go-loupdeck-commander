@@ -1,8 +1,9 @@
 # CMake build directories
 build/
 build-*/
+dist/
 
-# Compiled binaries
+# Compiled binaries and packages
 /loupedeck-commander
 /loupedeck-commander.exe
 *.exe
